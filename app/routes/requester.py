@@ -8,7 +8,7 @@ from app.routes.helpers import return_error, require_access_token
 requester_bp = Blueprint("requester", __name__)
 
 # ------------------- POST /v1/requester/chats/create -------------------
-@requester_bp.route("/v1/requester/chats/create", methods=["POST"])
+@requester_bp.route("/v1/requester/chats", methods=["POST"])
 def create_chat():
     _, error = require_access_token()
     if error: return error

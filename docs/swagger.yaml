@@ -16,6 +16,8 @@ tags:
     description: Token management
   - name: Auth
     description: Auth Endpoints
+security:
+  - AccessTokenAuth: []
 
 
 paths:
@@ -1521,6 +1523,7 @@ paths:
       summary: register a new user account
       description: |
         Creates a new user account and returns an access token.
+      security: []
 
       requestBody:
         required: true
@@ -1594,6 +1597,7 @@ paths:
       summary: log in to an existing account
       description: |
         Authenticates a user and returns an access token.
+      security: []
 
       requestBody:
         required: true
@@ -1776,6 +1780,12 @@ paths:
 
 components:
 
+  securitySchemes:
+    AccessTokenAuth:
+      type: apiKey
+      in: header
+      name: AccessToken
+
   parameters:
     ChatId:
       name: chatID
@@ -1801,7 +1811,7 @@ components:
       properties:
         requestText:
           type: string
-          example: Create a website for my store selling hitman services.
+          example: Create a website for my online store.
         title:
           type: string
           example: website design
@@ -1996,8 +2006,12 @@ components:
     User:
       type: object
       properties:
+        username:
+          type: string
+          example: cool_guy
         userName:
           type: string
+          deprecated: true
           example: cool_guy
         name:
           type: string
@@ -2016,6 +2030,7 @@ components:
       properties:
         accessToken:
           type: string
+          description: Access token for authenticated requests.
           example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9
         user:
           $ref: "#/components/schemas/User"
