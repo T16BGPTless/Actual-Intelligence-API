@@ -12,11 +12,10 @@ auth_bp = Blueprint("auth", __name__)
 def register():
     body = request.get_json(silent=True) or {}
     
-    # Check for required fields based on RegisterRequest schema
+    # Check for required fields
     required_fields = ["email", "password", "name", "userName"]
     for field in required_fields:
         if field not in body:
-            # Matches YAML example: "Missing or invalid registration data: missing field: email"
             return return_error("BAD_REQUEST", f"Missing or invalid registration data: missing field: {field}")
 
     # Mocking a Conflict (409)
@@ -38,7 +37,7 @@ def register():
 def login():
     body = request.get_json(silent=True) or {}
     
-    # Check for specific missing password error in YAML
+    # Check for specific missing password error
     if "password" not in body:
         return return_error("BAD_REQUEST", "Missing or invalid login data: missing field: password")
     if "email" not in body:
@@ -76,7 +75,7 @@ def get_me():
     if error: 
         return return_error("UNAUTHORIZED", "Missing or invalid bearer token")
 
-    # Mock return of the 'User' schema
+    # Mock return of the 'User' <--- (WILL HAVE TO CHANGE TO SUPABASE LOGIC)
     return jsonify({
         "email": "user@gptless.au",
         "name": "Current User",

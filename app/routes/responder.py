@@ -13,41 +13,83 @@ def list_chats():
     _, error = require_access_token()
     if error: return error
 
-    # Capturing query params from your spec
-    status_filter = request.args.get("status")
-    claimed_filter = request.args.get("claimed")
+    categories = request.args.get("categories")
 
-    # Mock response array of ChatSummary
+    # Mock response matching ChatSummary
+    # <--- (WILL HAVE TO CHANGE TO SUPABASE LOGIC: Filter by responder_id)
     chats = [
-        {"chatID": "12001", "status": "unclaimed", "createdAt": "2025-08-14T10:30:00Z"},
-        {"chatID": "12002", "status": "claimed", "createdAt": "2025-08-14T11:00:00Z"}
+        {
+            "chatID": "12345", 
+            "title": "website design", 
+            "category": "development", 
+            "status": "open", 
+            "tokens": 30, 
+            "createdAt": "2025-08-14T10:30:00Z"
+        }
     ]
     return jsonify(chats), HTTPStatus.OK
 
-# ------------------- POST /v1/responder/chats/claim/{chatID} -------------------
-@responder_bp.route("/v1/responder/chats/claim/<chatID>", methods=["POST"])
+# ------------------- GET /v1/responder/chats/unclaimed -------------------
+@responder_bp.route("/v1/responder/chats/unclaimed", methods=["GET"])
+def list_unclaimed_chats():
+    _, error = require_access_token()
+    if error: return error
+
+    categories = request.args.get("categories")
+
+    # <--- (WILL HAVE TO CHANGE TO SUPABASE LOGIC: Select where responder_id IS NULL)
+    unclaimed = [
+        {
+            "chatID": "e4f0d", 
+            "title": "Bug in React App", 
+            "category": "development", 
+            "status": "open", 
+            "tokens": 50, 
+            "createdAt": "2026-04-05T12:00:00Z"
+        }
+    ]
+    return jsonify(unclaimed), HTTPStatus.OK
+
+# ------------------- GET /v1/responder/chats/{chatID} -------------------
+# Removed 'int:' to allow hex strings like 'e4f0d'
+@responder_bp.route("/v1/responder/chats/<chatID>", methods=["GET"])
+def get_chat(chatID):
+    _, error = require_access_token()
+    if error: return error
+
+    # Mocking not found
+    # <--- (WILL HAVE TO CHANGE TO SUPABASE LOGIC: Check if row exists)
+    if chatID == "nonexistent":
+        return return_error("NOT_FOUND", "The requested resource was not found")
+
+    return jsonify({
+        "chatID": chatID,
+        "title": "Sample Chat",
+        "category": "writing",
+        "status": "open",
+        "messages": [],
+        "requests": []
+    }), HTTPStatus.OK
+
+# ------------------- POST /v1/responder/chats/{chatID}/claim -------------------
+@responder_bp.route("/v1/responder/chats/<chatID>/claim", methods=["POST"])
 def claim_chat(chatID):
     _, error = require_access_token()
     if error: return error
 
-    # Mocking a 404
-    if chatID == "nonexistent":
-        return return_error("NOT_FOUND")
-
-    # Mocking a 409 Conflict (Already claimed)
-    if chatID == "12002":
+    # Mocking already claimed
+    # <--- (WILL HAVE TO CHANGE TO SUPABASE LOGIC: Update responder_id if currently NULL)
+    if chatID == "12002": 
         return return_error("CONFLICT", "This chat has already been claimed")
 
-    # Success (201 Created)
+    # YAML expects 200 OK for successful claim
     return jsonify({
         "chatID": chatID,
-        "requesterUsername": "cool_guy",
-        "responderUsername": "pro_responder",
+        "title": "Claimed Chat",
         "status": "claimed",
-        "createdAt": "2025-08-14T10:30:00Z",
         "messages": [],
         "requests": []
-    }), HTTPStatus.CREATED
+    }), HTTPStatus.OK
 
 # ------------------- POST /v1/responder/chats/{chatID}/messages -------------------
 @responder_bp.route("/v1/responder/chats/<chatID>/messages", methods=["POST"])
@@ -59,11 +101,12 @@ def send_message(chatID):
     if "message" not in body:
         return return_error("BAD_REQUEST", "Missing or invalid message data: missing field: message")
 
+    # <--- (WILL HAVE TO CHANGE TO SUPABASE LOGIC: Insert into messages table)
     return jsonify({
-        "messageID": "msg_" + uuid.uuid4().hex[:4],
+        "messageID": "msg_" + uuid.uuid4().hex[:6],
         "senderType": "responder",
         "message": body["message"],
-        "createdAt": "2025-08-14T11:05:00Z"
+        "createdAt": "2026-04-05T14:00:00Z"
     }), HTTPStatus.CREATED
 
 # ------------------- POST /v1/responder/chats/{chatID}/fulfill-request -------------------
@@ -73,34 +116,17 @@ def fulfill_request(chatID):
     if error: return error
 
     body = request.get_json(silent=True) or {}
-    
-    # 400 Bad Request
     if "responseText" not in body:
         return return_error("BAD_REQUEST", "Missing or invalid fulfillment data: missing field: responseText")
 
-    # 409 Conflict (No active request) - Mocking with a specific ID
-    if chatID == "empty_chat":
+    # Mocking Conflict
+    # <--- (WILL HAVE TO CHANGE TO SUPABASE LOGIC: Check if active request exists)
+    if chatID == "empty_chat": 
         return return_error("CONFLICT", "There is no active request to fulfill")
 
     return jsonify({
-        "fulfillmentID": "full_" + uuid.uuid4().hex[:4],
-        "requestID": "req_123",
+        "fulfillmentID": "full_" + uuid.uuid4().hex[:6],
+        "requestID": "req_abc",
         "responseText": body["responseText"],
-        "createdAt": "2025-08-14T11:10:00Z"
+        "createdAt": "2026-04-05T14:10:00Z"
     }), HTTPStatus.CREATED
-
-# ------------------- GET /v1/responder/chats/{chatID} -------------------
-@responder_bp.route("/v1/responder/chats/<chatID>", methods=["GET"])
-def get_chat(chatID):
-    _, error = require_access_token()
-    if error: return error
-
-    return jsonify({
-        "chatID": chatID,
-        "requesterUsername": "user1",
-        "responderUsername": "responder1",
-        "status": "open",
-        "createdAt": "2025-08-14T10:30:00Z",
-        "messages": [],
-        "requests": []
-    }), HTTPStatus.OK

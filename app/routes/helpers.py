@@ -27,8 +27,13 @@ def return_error(error: str, custom_message: str = None) -> tuple[Response, int]
     }), status
 
 def require_access_token() -> tuple[str | None, tuple[Response, int] | None]:
-    """Validate that the AccessToken header is present."""
-    access_token = request.headers.get("AccessToken")
-    if not access_token:
+    """Validate that the Authorization header is present and starts with Bearer."""
+    auth_header = request.headers.get("Authorization")
+    
+    # Check if header exists and follows "Bearer <token>" format
+    if not auth_header or not auth_header.startswith("Bearer "):
         return None, return_error("UNAUTHORIZED")
+    
+    access_token = auth_header.split(" ", 1)[1]
+    
     return access_token, None

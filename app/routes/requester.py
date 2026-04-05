@@ -10,6 +10,7 @@ requester_bp = Blueprint("requester", __name__)
 # ------------------- POST /v1/requester/chats -------------------
 @requester_bp.route("/v1/requester/chats", methods=["POST"])
 def create_chat():
+    # <--- (WILL HAVE TO CHANGE TO SUPABASE LOGIC: Validate token and get user_id)
     _, error = require_access_token()
     if error: return error
 
@@ -17,12 +18,12 @@ def create_chat():
     if "requestText" not in body:
         return return_error("BAD_REQUEST", "Missing or invalid chat data: missing field: requestText")
 
-    # Mock response matching the 'Chat' schema
+    # <--- (WILL HAVE TO CHANGE TO SUPABASE LOGIC: Insert into 'chats' and 'requests' tables)
     new_chat = {
         "chatID": str(uuid.uuid4().hex[:5]),
         "title": body.get("title", "New Request"),
         "category": body.get("category", "general"),
-        "requesterUsername": "cool_guy",
+        "requesterUsername": "cool_guy", # <--- (GET FROM SUPABASE JOIN)
         "responderUsername": None,
         "status": "open",
         "tokens": body.get("tokensToSpend", 0),
@@ -44,7 +45,7 @@ def list_chats():
     _, error = require_access_token()
     if error: return error
 
-    # Mock list matching 'ChatSummary' schema
+    # <--- (WILL HAVE TO CHANGE TO SUPABASE LOGIC: Select chats where requester_id = current_user)
     chats = [
         {
             "chatID": "12345", 
@@ -71,7 +72,8 @@ def get_chat(chatID):
     _, error = require_access_token()
     if error: return error
 
-    if chatID == "404":
+    # <--- (WILL HAVE TO CHANGE TO SUPABASE LOGIC: Fetch full chat details, messages, and requests)
+    if chatID == "404": 
         return return_error("NOT_FOUND")
 
     return jsonify({
@@ -92,14 +94,15 @@ def send_message(chatID):
     if "message" not in body:
         return return_error("BAD_REQUEST", "Missing or invalid message data: missing field: message")
 
+    # <--- (WILL HAVE TO CHANGE TO SUPABASE LOGIC: Insert into 'messages' table)
     return jsonify({
         "messageID": "msg_" + uuid.uuid4().hex[:4],
         "senderType": "requester",
         "message": body["message"],
-        "createdAt": "2025-08-14T10:35:00Z"
+        "createdAt": "2026-04-05T10:35:00Z"
     }), HTTPStatus.CREATED
 
-# ------------------- NEW: POST /v1/requester/chats/{chatID}/requests -------------------
+# ------------------- POST /v1/requester/chats/{chatID}/requests -------------------
 @requester_bp.route("/v1/requester/chats/<chatID>/requests", methods=["POST"])
 def add_request(chatID):
     _, error = require_access_token()
@@ -109,13 +112,13 @@ def add_request(chatID):
     if "requestText" not in body:
         return return_error("BAD_REQUEST", "Missing or invalid request data: missing field: requestText")
 
-    # Mock response for the 'Request' schema
+    # <--- (WILL HAVE TO CHANGE TO SUPABASE LOGIC: Insert into 'requests' table linked to chatID)
     return jsonify({
         "requestID": "req_" + uuid.uuid4().hex[:4],
         "requestText": body["requestText"],
         "status": "pending",
         "tokensSpent": body.get("tokensToSpend", 0),
-        "createdAt": "2025-08-14T11:00:00Z"
+        "createdAt": "2026-04-05T11:00:00Z"
     }), HTTPStatus.CREATED
 
 # ------------------- POST /v1/requester/chats/{chatID}/close -------------------
@@ -124,5 +127,5 @@ def close_chat(chatID):
     _, error = require_access_token()
     if error: return error
 
-    # YAML says returns 200 OK with no body or a simple message
+    # <--- (WILL HAVE TO CHANGE TO SUPABASE LOGIC: Update chat status to 'closed')
     return jsonify({"message": "Chat closed"}), HTTPStatus.OK
