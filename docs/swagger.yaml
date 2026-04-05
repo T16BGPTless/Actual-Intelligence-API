@@ -17,8 +17,9 @@ tags:
   - name: Auth
     description: Auth Endpoints
 
+
 paths:
-  /v1/requester/chats/create:
+  /v1/requester/chats:
     post:
       tags: [Requester side]
       summary: create a new chat with initial request
@@ -93,6 +94,155 @@ paths:
                   value:
                     error: FORBIDDEN
                     message: You do not have access to this content
+
+        "500":
+          description: |
+            **Internal Server Error**
+            
+            There was an internal server error. If this persists contact us at contact@gptless.au.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              examples:
+                INTERNAL_SERVER_ERROR:
+                  summary: INTERNAL_SERVER_ERROR
+                  value:
+                    error: INTERNAL_SERVER_ERROR
+                    message: An internal server error occurred.
+    get:
+      tags: [Requester side]
+      summary: Lists chats
+      description: Provides a list of chats that the requester has made.
+
+      parameters:
+        - $ref: "#/components/parameters/AccessToken"
+
+      responses:
+        "200":
+          description: |
+            **OK**
+            
+            Returns an array of chats.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ChatSummary"
+              example:
+                - chatID: 12345
+                  title: website design
+                  category: development
+                  status: open
+                  tokens: 30
+                  createdAt: "2025-08-14T10:30:00Z"
+                - chatID: 54321
+                  title: poem request
+                  category: writing
+                  status: closed
+                  tokens: 40
+                  createdAt: "2025-08-13T09:00:00Z"
+
+        "401":
+          description: |
+            **Unauthorized**
+            
+            Missing or invalid API token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              examples:
+                UNAUTHORIZED:
+                  summary: UNAUTHORIZED
+                  value:
+                    error: UNAUTHORIZED
+                    message: The API token is missing or invalid. If you do not have an API token register for one through the form on our website
+
+        "500":
+          description: |
+            **Internal Server Error**
+            
+            There was an internal server error. If this persists contact us at contact@gptless.au.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              examples:
+                INTERNAL_SERVER_ERROR:
+                  summary: INTERNAL_SERVER_ERROR
+                  value:
+                    error: INTERNAL_SERVER_ERROR
+                    message: An internal server error occurred.
+
+  /v1/requester/chats/{chatID}:
+    parameters:
+      - $ref: "#/components/parameters/AccessToken"
+      - $ref: "#/components/parameters/ChatId"
+
+    get:
+      tags: [Requester side]
+      summary: get a chat
+      description: Given a valid chatID, returns the full chat.
+      responses:
+        "200":
+          description: |
+            **OK**
+
+            Returns the chat.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Chat"
+
+        "401":
+          description: |
+            **Unauthorized**
+            
+            Missing or invalid API token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              examples:
+                UNAUTHORIZED:
+                  summary: UNAUTHORIZED
+                  value:
+                    error: UNAUTHORIZED
+                    message: The API token is missing or invalid. If you do not have an API token register for one through the form on our website
+
+        "403":
+          description: |
+            **Forbidden**
+            
+            You do not have access to this chat.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              examples:
+                FORBIDDEN:
+                  summary: FORBIDDEN
+                  value:
+                    error: FORBIDDEN
+                    message: You do not have access to this content
+
+        "404":
+          description: |
+            **Not Found**
+            
+            ChatID does not exist.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              examples:
+                NOT_FOUND:
+                  summary: NOT_FOUND
+                  value:
+                    error: NOT_FOUND
+                    message: The requested resource was not found
 
         "500":
           description: |
@@ -344,152 +494,7 @@ paths:
                     error: INTERNAL_SERVER_ERROR
                     message: An internal server error occurred.
 
-  /v1/requester/chats:
-    get:
-      tags: [Requester side]
-      summary: Lists chats
-      description: Provides a list of chats.
-
-      parameters:
-        - $ref: "#/components/parameters/AccessToken"
-
-      responses:
-        "200":
-          description: |
-            **OK**
-            
-            Returns an array of chats.
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/ChatSummary"
-              example:
-                - chatID: 12345
-                  status: open
-                  createdAt: "2025-08-14T10:30:00Z"
-                - chatID: 54321
-                  status: closed
-                  createdAt: "2025-08-13T09:00:00Z"
-
-        "401":
-          description: |
-            **Unauthorized**
-            
-            Missing or invalid API token.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
-              examples:
-                UNAUTHORIZED:
-                  summary: UNAUTHORIZED
-                  value:
-                    error: UNAUTHORIZED
-                    message: The API token is missing or invalid. If you do not have an API token register for one through the form on our website
-
-        "500":
-          description: |
-            **Internal Server Error**
-            
-            There was an internal server error. If this persists contact us at contact@gptless.au.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
-              examples:
-                INTERNAL_SERVER_ERROR:
-                  summary: INTERNAL_SERVER_ERROR
-                  value:
-                    error: INTERNAL_SERVER_ERROR
-                    message: An internal server error occurred.
-
-  /v1/requester/chats/{chatID}:
-    parameters:
-      - $ref: "#/components/parameters/AccessToken"
-      - $ref: "#/components/parameters/ChatId"
-
-    get:
-      tags: [Requester side]
-      summary: get a chat
-      description: Given a valid chatID, returns the full chat.
-      responses:
-        "200":
-          description: |
-            **OK**
-
-            Returns the chat.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Chat"
-
-        "401":
-          description: |
-            **Unauthorized**
-            
-            Missing or invalid API token.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
-              examples:
-                UNAUTHORIZED:
-                  summary: UNAUTHORIZED
-                  value:
-                    error: UNAUTHORIZED
-                    message: The API token is missing or invalid. If you do not have an API token register for one through the form on our website
-
-        "403":
-          description: |
-            **Forbidden**
-            
-            You do not have access to this chat.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
-              examples:
-                FORBIDDEN:
-                  summary: FORBIDDEN
-                  value:
-                    error: FORBIDDEN
-                    message: You do not have access to this content
-
-        "404":
-          description: |
-            **Not Found**
-            
-            ChatID does not exist.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
-              examples:
-                NOT_FOUND:
-                  summary: NOT_FOUND
-                  value:
-                    error: NOT_FOUND
-                    message: The requested resource was not found
-
-        "500":
-          description: |
-            **Internal Server Error**
-            
-            There was an internal server error. If this persists contact us at contact@gptless.au.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
-              examples:
-                INTERNAL_SERVER_ERROR:
-                  summary: INTERNAL_SERVER_ERROR
-                  value:
-                    error: INTERNAL_SERVER_ERROR
-                    message: An internal server error occurred.
-
-  /v1/requester/chats/close/{chatID}:
+  /v1/requester/chats/{chatID}/close:
     parameters:
       - $ref: "#/components/parameters/AccessToken"
       - $ref: "#/components/parameters/ChatId"
@@ -568,8 +573,247 @@ paths:
                   value:
                     error: INTERNAL_SERVER_ERROR
                     message: An internal server error occurred.
+  /v1/responder/chats:
+    get:
+      tags: [Responder side]
+      summary: list your chats.
+      description: lists all the chats belonging to a responder. can be filtered by categories with params
 
-  /v1/responder/chats/claim/{chatID}:
+      parameters:
+        - $ref: "#/components/parameters/AccessToken"
+        - in: query
+          name: categories 
+          required: false
+          style: form
+          explode: false
+          schema:
+            type: array
+            items:
+              type: string
+          description: |
+            Filters chats by categories.
+            Provide multiple values as a comma-separated list.
+      responses:
+        "200":
+          description: |
+            **OK**
+            
+            Returns an array of chats.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ChatSummary"
+              example:
+                - chatID: 12345
+                  title: website design
+                  category: development
+                  status: open
+                  tokens: 30
+                  createdAt: "2025-08-14T10:30:00Z"
+                - chatID: 54321
+                  title: poem request
+                  category: writing
+                  status: closed
+                  tokens: 40
+                  createdAt: "2025-08-13T09:00:00Z"
+
+        "401":
+          description: |
+            **Unauthorized**
+            
+            Missing or invalid API token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              examples:
+                UNAUTHORIZED:
+                  summary: UNAUTHORIZED
+                  value:
+                    error: UNAUTHORIZED
+                    message: The API token is missing or invalid. If you do not have an API token register for one through the form on our website
+
+        "500":
+          description: |
+            **Internal Server Error**
+            
+            There was an internal server error. If this persists contact us at contact@gptless.au.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              examples:
+                INTERNAL_SERVER_ERROR:
+                  summary: INTERNAL_SERVER_ERROR
+                  value:
+                    error: INTERNAL_SERVER_ERROR
+                    message: An internal server error occurred.
+
+  /v1/responder/chats/unclaimed:
+    get:
+      tags: [Responder side]
+      summary: list unclaimed chats.
+      description: provides a list of unclaimed chats. 
+
+      parameters:
+        - $ref: "#/components/parameters/AccessToken"
+        - in: query
+          name: categories
+          required: false
+          style: form
+          explode: false
+          schema:
+            type: array
+            items:
+              type: string
+          description: |
+            Filters chats by categories.
+            Provide multiple values as a comma-separated list.
+
+      responses:
+        "200":
+          description: |
+            **OK**
+            
+            Returns an array of chats.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ChatSummary"
+              example:
+                - chatID: 12345
+                  title: website design
+                  category: development
+                  status: open
+                  tokens: 30
+                  createdAt: "2025-08-14T10:30:00Z"
+                - chatID: 54321
+                  title: poem request
+                  category: writing
+                  status: closed
+                  tokens: 40
+                  createdAt: "2025-08-13T09:00:00Z"
+        "401":
+          description: |
+            **Unauthorized**
+            
+            Missing or invalid API token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              examples:
+                UNAUTHORIZED:
+                  summary: UNAUTHORIZED
+                  value:
+                    error: UNAUTHORIZED
+                    message: The API token is missing or invalid. If you do not have an API token register for one through the form on our website
+
+        "500":
+          description: |
+            **Internal Server Error**
+            
+            There was an internal server error. If this persists contact us at contact@gptless.au.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              examples:
+                INTERNAL_SERVER_ERROR:
+                  summary: INTERNAL_SERVER_ERROR
+                  value:
+                    error: INTERNAL_SERVER_ERROR
+                    message: An internal server error occurred.
+
+  /v1/responder/chats/{chatID}:
+    parameters:
+      - $ref: "#/components/parameters/AccessToken"
+      - $ref: "#/components/parameters/ChatId"
+
+    get:
+      tags: [Responder side]
+      summary: get a chat
+      description: Given a valid chatID, returns the chat.
+      responses:
+        "200":
+          description: |
+            **OK**
+
+            Returns the chat.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Chat"
+
+        "401":
+          description: |
+            **Unauthorized**
+            
+            Missing or invalid API token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              examples:
+                UNAUTHORIZED:
+                  summary: UNAUTHORIZED
+                  value:
+                    error: UNAUTHORIZED
+                    message: The API token is missing or invalid. If you do not have an API token register for one through the form on our website
+
+        "403":
+          description: |
+            **Forbidden**
+            
+            You do not have access to this chat.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              examples:
+                FORBIDDEN:
+                  summary: FORBIDDEN
+                  value:
+                    error: FORBIDDEN
+                    message: You do not have access to this content
+
+        "404":
+          description: |
+            **Not Found**
+            
+            ChatID does not exist.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              examples:
+                NOT_FOUND:
+                  summary: NOT_FOUND
+                  value:
+                    error: NOT_FOUND
+                    message: The requested resource was not found
+
+        "500":
+          description: |
+            **Internal Server Error**
+            
+            There was an internal server error. If this persists contact us at contact@gptless.au.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              examples:
+                INTERNAL_SERVER_ERROR:
+                  summary: INTERNAL_SERVER_ERROR
+                  value:
+                    error: INTERNAL_SERVER_ERROR
+                    message: An internal server error occurred.
+
+  /v1/responder/chats/{chatID}/claim:
     post:
       tags: [Responder side]
       summary: claim a chat
@@ -581,9 +825,9 @@ paths:
         - $ref: "#/components/parameters/ChatId"
 
       responses:
-        "201":
+        "200":
           description: |
-            **Created**
+            **OK**
             
             Returns the claimed chat.
           content:
@@ -921,167 +1165,11 @@ paths:
                     error: INTERNAL_SERVER_ERROR
                     message: An internal server error occurred.
 
-  /v1/responder/chats:
+
+
+
+  /v1/tokens:
     get:
-      tags: [Responder side]
-      summary: list chats.
-      description: provides a list of chats can be filtered by giving an optional object with the desired categories
-
-      parameters:
-        - $ref: "#/components/parameters/AccessToken"
-        - name: status
-          in: query
-          required: false
-          schema:
-            type: string
-            example: unclaimed
-          description: Optional chat status filter.
-        - name: claimed
-          in: query
-          required: false
-          schema:
-            type: boolean
-            example: false
-          description: Optional claimed filter.
-
-      responses:
-        "200":
-          description: |
-            **OK**
-            
-            Returns an array of chats.
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/ChatSummary"
-              example:
-                - chatID: 12001
-                  status: unclaimed
-                  createdAt: "2025-08-14T10:30:00Z"
-                - chatID: 12002
-                  status: claimed
-                  createdAt: "2025-08-14T11:00:00Z"
-
-        "401":
-          description: |
-            **Unauthorized**
-            
-            Missing or invalid API token.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
-              examples:
-                UNAUTHORIZED:
-                  summary: UNAUTHORIZED
-                  value:
-                    error: UNAUTHORIZED
-                    message: The API token is missing or invalid. If you do not have an API token register for one through the form on our website
-
-        "500":
-          description: |
-            **Internal Server Error**
-            
-            There was an internal server error. If this persists contact us at contact@gptless.au.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
-              examples:
-                INTERNAL_SERVER_ERROR:
-                  summary: INTERNAL_SERVER_ERROR
-                  value:
-                    error: INTERNAL_SERVER_ERROR
-                    message: An internal server error occurred.
-
-  /v1/responder/chats/{chatID}:
-    parameters:
-      - $ref: "#/components/parameters/AccessToken"
-      - $ref: "#/components/parameters/ChatId"
-
-    get:
-      tags: [Responder side]
-      summary: get a chat
-      description: Given a valid chatID, returns the chat.
-      responses:
-        "200":
-          description: |
-            **OK**
-
-            Returns the chat.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Chat"
-
-        "401":
-          description: |
-            **Unauthorized**
-            
-            Missing or invalid API token.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
-              examples:
-                UNAUTHORIZED:
-                  summary: UNAUTHORIZED
-                  value:
-                    error: UNAUTHORIZED
-                    message: The API token is missing or invalid. If you do not have an API token register for one through the form on our website
-
-        "403":
-          description: |
-            **Forbidden**
-            
-            You do not have access to this chat.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
-              examples:
-                FORBIDDEN:
-                  summary: FORBIDDEN
-                  value:
-                    error: FORBIDDEN
-                    message: You do not have access to this content
-
-        "404":
-          description: |
-            **Not Found**
-            
-            ChatID does not exist.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
-              examples:
-                NOT_FOUND:
-                  summary: NOT_FOUND
-                  value:
-                    error: NOT_FOUND
-                    message: The requested resource was not found
-
-        "500":
-          description: |
-            **Internal Server Error**
-            
-            There was an internal server error. If this persists contact us at contact@gptless.au.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
-              examples:
-                INTERNAL_SERVER_ERROR:
-                  summary: INTERNAL_SERVER_ERROR
-                  value:
-                    error: INTERNAL_SERVER_ERROR
-                    message: An internal server error occurred.
-
-  /v1/tokens/:
-    post:
       tags: [Tokens]
       summary: lists your token balance
       description: |
@@ -1767,9 +1855,18 @@ components:
         chatID:
           type: string
           example: 12345
+        title:
+          type: string
+          example: poem request
+        category:
+          type: string
+          example: writing
         status:
           type: string
           example: open
+        Tokens:
+          type: number
+          example: 30
         createdAt:
           type: string
           format: date-time
@@ -1841,7 +1938,7 @@ components:
         responderUsername:
           type: string
           nullable: true
-          example: null
+          example: John
         status:
           type: string
           example: open
@@ -1918,7 +2015,8 @@ components:
       type: object
       properties:
         accessToken:
-          $ref: "#/components/parameters/AccessToken"
+          type: string
+          example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9
         user:
           $ref: "#/components/schemas/User"
 
@@ -1932,5 +2030,4 @@ components:
           type: string
         message:
           type: string
-
-      
+          
