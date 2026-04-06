@@ -2,9 +2,11 @@
 
 from types import SimpleNamespace
 
+from postgrest.exceptions import APIError
 from supabase_auth.errors import AuthApiError
 
 from app.routes import auth as auth_routes
+from tests.conftest import QueryChain
 
 
 def _fake_user():
@@ -127,7 +129,7 @@ def test_logout_success_returns_200(client, monkeypatch):
     resp = client.post("/v1/auth/logout")
     assert resp.status_code == 200
     assert resp.json["message"] == "Logged out successfully"
-    assert called == {"jwt": "tok", "scope": "global"}
+    assert called == {"jwt": "tok", "scope": "local"}
 
 
 def test_logout_invalid_token_returns_401(client, monkeypatch):
@@ -262,3 +264,69 @@ def test_me_unauthorized_when_user_lookup_fails(client, monkeypatch):
     )
     resp = client.get("/v1/auth/me")
     assert resp.status_code == 401
+
+
+def test_register_bad_request_for_non_conflict_auth_error(client, monkeypatch):
+    def raise_other(*_a, **_k):
+        raise AuthApiError("weak password", 400, None)
+
+    fake_client = SimpleNamespace(auth=SimpleNamespace(sign_up=raise_other))
+    monkeypatch.setattr(auth_routes, "anon_client", lambda: fake_client)
+    resp = client.post(
+        "/v1/auth/register",
+        json={
+            "email": "ok@example.com",
+            "password": "pw",
+            "name": "User",
+            "userName": "ok",
+        },
+    )
+    assert resp.status_code == 400
+
+
+def test_register_forbidden_when_fallback_has_no_session(client, monkeypatch):
+    signup_resp = SimpleNamespace(session=None, user=_fake_user())
+    signin_resp = SimpleNamespace(session=None, user=_fake_user())
+    fake_client = SimpleNamespace(
+        auth=SimpleNamespace(
+            sign_up=lambda *_a, **_k: signup_resp,
+            sign_in_with_password=lambda *_a, **_k: signin_resp,
+        )
+    )
+    monkeypatch.setattr(auth_routes, "anon_client", lambda: fake_client)
+    resp = client.post(
+        "/v1/auth/register",
+        json={
+            "email": "ok@example.com",
+            "password": "pw",
+            "name": "User",
+            "userName": "ok",
+        },
+    )
+    assert resp.status_code == 403
+
+
+def test_user_payload_prefers_profile_data(monkeypatch):
+    fake_user = _fake_user()
+    chain = QueryChain(
+        {"username": "from_profile", "display_name": "Profile Name", "created_at": "2026-04-02T00:00:00+00:00"}
+    )
+    monkeypatch.setattr(
+        auth_routes, "user_client", lambda _t: SimpleNamespace(table=lambda _n: chain)
+    )
+    payload = auth_routes._user_payload("tok", fake_user)
+    assert payload["userName"] == "from_profile"
+    assert payload["name"] == "Profile Name"
+
+
+def test_user_payload_falls_back_to_metadata_on_profile_error(monkeypatch):
+    class BadChain(QueryChain):
+        def execute(self):
+            raise APIError({"message": "boom"})
+
+    monkeypatch.setattr(
+        auth_routes, "user_client", lambda _t: SimpleNamespace(table=lambda _n: BadChain())
+    )
+    payload = auth_routes._user_payload("tok", _fake_user())
+    assert payload["userName"] == "u1"
+    assert payload["name"] == "User One"

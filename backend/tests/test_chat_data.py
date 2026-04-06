@@ -47,6 +47,7 @@ def test_profile_map_and_token_totals():
             ],
         }
     )
+    assert chat_data.token_totals_by_chat(client, []) == {}
     assert chat_data.profile_map(client, set()) == {}
     pmap = chat_data.profile_map(client, {"u1"})
     assert pmap["u1"]["username"] == "u"
