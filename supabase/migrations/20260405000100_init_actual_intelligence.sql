@@ -1,5 +1,6 @@
 -- Initial schema for GPTless "Actual Intelligence" app.
--- Covers auth-linked profiles, chats, requests, messages, fulfillments, and token accounting.
+-- Covers auth-linked profiles, chats, requests, messages, fulfillments, token accounting,
+-- API RPC helpers (create chat + fulfill request), and responder/unclaimed-chat RLS.
 
 create extension if not exists pgcrypto;
 
@@ -268,6 +269,35 @@ to authenticated
 using (user_id = auth.uid())
 with check (user_id = auth.uid());
 
+create policy "profiles_select_for_chat_peer"
+on public.profiles
+for select
+to authenticated
+using (
+  exists (
+    select 1
+    from public.chats c
+    where (c.requester_id = profiles.user_id or c.responder_id = profiles.user_id)
+      and (c.requester_id = auth.uid() or c.responder_id = auth.uid())
+  )
+);
+
+create policy "profiles_select_requester_when_unclaimed_pool"
+on public.profiles
+for select
+to authenticated
+using (
+  public.has_role('responder')
+  and exists (
+    select 1
+    from public.chats c
+    where c.requester_id = profiles.user_id
+      and c.responder_id is null
+      and c.claim_state = 'unclaimed'
+      and c.status = 'open'
+  )
+);
+
 create policy "user_roles_select_own"
 on public.user_roles
 for select
@@ -366,6 +396,17 @@ with check (
   and claim_state = 'claimed'
 );
 
+create policy "chats_select_unclaimed_for_responder"
+on public.chats
+for select
+to authenticated
+using (
+  public.has_role('responder')
+  and responder_id is null
+  and claim_state = 'unclaimed'
+  and status = 'open'
+);
+
 -- ----------
 -- Requests policies
 -- ----------
@@ -451,6 +492,113 @@ with check (
       and c.responder_id = auth.uid()
   )
 );
+
+-- ----------
+-- API RPCs (called from PostgREST / supabase-py as invoke)
+-- ----------
+create or replace function public.create_chat_with_initial_request(
+  p_title text,
+  p_category text,
+  p_request_text text,
+  p_tokens_to_spend bigint
+)
+returns jsonb
+language plpgsql
+security invoker
+set search_path = public
+as $$
+declare
+  v_chat_id text;
+  v_request_id text;
+  v_uid uuid := auth.uid();
+begin
+  if v_uid is null then
+    raise exception 'not authenticated';
+  end if;
+
+  if p_request_text is null or length(trim(p_request_text)) = 0 then
+    raise exception 'invalid_request_text';
+  end if;
+
+  if p_tokens_to_spend is null or p_tokens_to_spend <= 0 then
+    raise exception 'invalid_tokens';
+  end if;
+
+  insert into public.chats (requester_id, title, category, status, claim_state)
+  values (
+    v_uid,
+    coalesce(nullif(trim(p_title), ''), 'New Request'),
+    coalesce(nullif(trim(p_category), ''), 'general'),
+    'open',
+    'unclaimed'
+  )
+  returning chat_id into v_chat_id;
+
+  insert into public.requests (chat_id, requester_id, request_text, tokens_to_spend, status)
+  values (v_chat_id, v_uid, trim(p_request_text), p_tokens_to_spend, 'pending')
+  returning request_id into v_request_id;
+
+  return jsonb_build_object(
+    'ok', true,
+    'chat_id', v_chat_id,
+    'request_id', v_request_id
+  );
+end;
+$$;
+
+create or replace function public.fulfill_chat_active_request(
+  p_chat_id text,
+  p_response_text text,
+  p_attachments jsonb default '[]'::jsonb
+)
+returns jsonb
+language plpgsql
+security invoker
+set search_path = public
+as $$
+declare
+  v_req public.requests%rowtype;
+  v_fid text;
+  v_uid uuid := auth.uid();
+begin
+  if v_uid is null then
+    raise exception 'not authenticated';
+  end if;
+
+  if p_response_text is null or length(trim(p_response_text)) = 0 then
+    raise exception 'invalid_response_text';
+  end if;
+
+  select * into v_req
+  from public.requests r
+  where r.chat_id = p_chat_id
+    and r.status in ('pending', 'in_progress')
+  order by r.created_at asc
+  limit 1
+  for update;
+
+  if v_req.request_id is null then
+    return jsonb_build_object('ok', false, 'error', 'no_active_request');
+  end if;
+
+  insert into public.fulfillments (request_id, chat_id, responder_id, response_text, attachments)
+  values (v_req.request_id, p_chat_id, v_uid, trim(p_response_text), coalesce(p_attachments, '[]'::jsonb))
+  returning fulfillment_id into v_fid;
+
+  update public.requests
+  set status = 'fulfilled'
+  where request_id = v_req.request_id;
+
+  return jsonb_build_object(
+    'ok', true,
+    'fulfillment_id', v_fid,
+    'request_id', v_req.request_id
+  );
+end;
+$$;
+
+grant execute on function public.create_chat_with_initial_request(text, text, text, bigint) to authenticated;
+grant execute on function public.fulfill_chat_active_request(text, text, jsonb) to authenticated;
 
 -- ----------
 -- Realtime subscriptions

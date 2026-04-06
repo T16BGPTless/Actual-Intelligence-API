@@ -1,84 +1,156 @@
 """Authentication endpoints."""
 
 from http import HTTPStatus
-import uuid
+
 from flask import Blueprint, jsonify, request
-from app.routes.helpers import return_error, require_access_token
+from postgrest.exceptions import APIError
+from supabase_auth.errors import AuthApiError
+
+from app.chat_data import api_ts
+from app.routes.helpers import return_error, require_access_token, require_supabase_user
+from app.supabase_client import anon_client, user_client
 
 auth_bp = Blueprint("auth", __name__)
 
-# ------------------- POST /v1/auth/register -------------------
+
+def _user_payload(access_token: str, user) -> dict:
+    meta = user.user_metadata or {}
+    try:
+        client = user_client(access_token)
+        prof = (
+            client.table("profiles")
+            .select("username,display_name,created_at")
+            .eq("user_id", str(user.id))
+            .maybe_single()
+            .execute()
+            .data
+        )
+    except APIError:
+        prof = None
+
+    if prof:
+        username = prof.get("username") or meta.get("username") or ""
+        name = prof.get("display_name") or meta.get("name") or ""
+        created = api_ts(prof.get("created_at") or user.created_at)
+    else:
+        username = meta.get("username") or ""
+        name = meta.get("name") or ""
+        created = api_ts(user.created_at)
+
+    return {
+        "email": user.email,
+        "name": name,
+        "userName": username,
+        "username": username,
+        "createdAt": created,
+    }
+
+
 @auth_bp.route("/v1/auth/register", methods=["POST"])
 def register():
     body = request.get_json(silent=True) or {}
-    
-    # Check for required fields
+
     required_fields = ["email", "password", "name", "userName"]
     for field in required_fields:
         if field not in body:
-            return return_error("BAD_REQUEST", f"Missing or invalid registration data: missing field: {field}")
+            return return_error(
+                "BAD_REQUEST",
+                f"Missing or invalid registration data: missing field: {field}",
+            )
 
-    # Mocking a Conflict (409)
-    if body["email"] == "taken@example.com":
-        return return_error("CONFLICT", "An account with this email already exists")
+    try:
+        auth_response = anon_client().auth.sign_up(
+            {
+                "email": body["email"],
+                "password": body["password"],
+                "options": {
+                    "data": {
+                        "username": body["userName"],
+                        "name": body["name"],
+                    }
+                },
+            }
+        )
+    except AuthApiError as e:
+        msg = (e.message or "").lower()
+        if "already" in msg or "registered" in msg:
+            return return_error("CONFLICT", "An account with this email already exists")
+        return return_error("BAD_REQUEST", e.message or "Registration failed")
 
-    return jsonify({
-        "accessToken": "at_" + uuid.uuid4().hex,
-        "user": {
-            "email": body["email"],
-            "name": body["name"],
-            "userName": body["userName"],
-            "createdAt": "2026-04-03T10:30:00Z"
-        }
-    }), HTTPStatus.CREATED
+    if not auth_response.session:
+        return return_error(
+            "FORBIDDEN",
+            "Confirm your email address before using the API.",
+        )
 
-# ------------------- POST /v1/auth/login -------------------
+    user = auth_response.user
+    if not user:
+        return return_error("INTERNAL_SERVER_ERROR")
+
+    token = auth_response.session.access_token
+    return (
+        jsonify(
+            {
+                "accessToken": token,
+                "user": _user_payload(token, user),
+            }
+        ),
+        HTTPStatus.CREATED,
+    )
+
+
 @auth_bp.route("/v1/auth/login", methods=["POST"])
 def login():
     body = request.get_json(silent=True) or {}
-    
-    # Check for specific missing password error
-    if "password" not in body:
-        return return_error("BAD_REQUEST", "Missing or invalid login data: missing field: password")
-    if "email" not in body:
-        return return_error("BAD_REQUEST", "Missing or invalid login data: missing field: email")
 
-    # Mocking Unauthorized (401)
-    if body["email"] == "wrong@example.com":
+    if "password" not in body:
+        return return_error(
+            "BAD_REQUEST", "Missing or invalid login data: missing field: password"
+        )
+    if "email" not in body:
+        return return_error(
+            "BAD_REQUEST", "Missing or invalid login data: missing field: email"
+        )
+
+    try:
+        auth_response = anon_client().auth.sign_in_with_password(
+            {"email": body["email"], "password": body["password"]}
+        )
+    except AuthApiError:
         return return_error("UNAUTHORIZED", "Invalid email or password")
 
-    return jsonify({
-        "accessToken": "at_" + uuid.uuid4().hex,
-        "user": {
-            "email": body["email"],
-            "name": "Jane Doe",
-            "userName": "pro_responder",
-            "createdAt": "2026-04-03T10:30:00Z"
-        }
-    }), HTTPStatus.OK
+    if not auth_response.session or not auth_response.user:
+        return return_error("UNAUTHORIZED", "Invalid email or password")
 
-# ------------------- POST /v1/auth/logout -------------------
+    token = auth_response.session.access_token
+    return (
+        jsonify(
+            {
+                "accessToken": token,
+                "user": _user_payload(token, auth_response.user),
+            }
+        ),
+        HTTPStatus.OK,
+    )
+
+
 @auth_bp.route("/v1/auth/logout", methods=["POST"])
 def logout():
-    # Verify token exists before logging out
     _, error = require_access_token()
-    if error: 
+    if error:
         return return_error("UNAUTHORIZED", "Missing or invalid bearer token")
 
     return jsonify({"message": "Logged out successfully"}), HTTPStatus.OK
 
-# ------------------- GET /v1/auth/me -------------------
+
 @auth_bp.route("/v1/auth/me", methods=["GET"])
 def get_me():
-    # This checks the Authorization header
-    _, error = require_access_token()
-    if error: 
+    access_token, error = require_access_token()
+    if error:
         return return_error("UNAUTHORIZED", "Missing or invalid bearer token")
 
-    # Mock return of the 'User' <--- (WILL HAVE TO CHANGE TO SUPABASE LOGIC)
-    return jsonify({
-        "email": "user@gptless.au",
-        "name": "Current User",
-        "userName": "current_user_123",
-        "createdAt": "2026-04-03T10:30:00Z"
-    }), HTTPStatus.OK
+    user, error = require_supabase_user(access_token)
+    if error:
+        return return_error("UNAUTHORIZED", "Missing or invalid bearer token")
+
+    return jsonify(_user_payload(access_token, user)), HTTPStatus.OK

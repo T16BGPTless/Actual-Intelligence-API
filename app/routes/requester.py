@@ -1,131 +1,230 @@
 """Requester side endpoints."""
 
 from http import HTTPStatus
-import uuid
+from datetime import datetime, timezone
+
 from flask import Blueprint, jsonify, request
-from app.routes.helpers import return_error, require_access_token
+from postgrest.exceptions import APIError
+
+from app.chat_data import (
+    build_chat_detail,
+    chat_summary_dict,
+    create_chat_with_initial_request,
+    get_chat_or_none,
+    message_dict,
+    request_dict,
+    token_totals_by_chat,
+)
+from app.routes.helpers import return_error, require_access_token, require_supabase_user
+from app.supabase_client import user_client
 
 requester_bp = Blueprint("requester", __name__)
 
-# ------------------- POST /v1/requester/chats -------------------
+
 @requester_bp.route("/v1/requester/chats", methods=["POST"])
 def create_chat():
-    # <--- (WILL HAVE TO CHANGE TO SUPABASE LOGIC: Validate token and get user_id)
-    _, error = require_access_token()
-    if error: return error
+    access_token, error = require_access_token()
+    if error:
+        return error
+    user, error = require_supabase_user(access_token)
+    if error:
+        return error
 
     body = request.get_json(silent=True) or {}
     if "requestText" not in body:
-        return return_error("BAD_REQUEST", "Missing or invalid chat data: missing field: requestText")
+        return return_error(
+            "BAD_REQUEST", "Missing or invalid chat data: missing field: requestText"
+        )
 
-    # <--- (WILL HAVE TO CHANGE TO SUPABASE LOGIC: Insert into 'chats' and 'requests' tables)
-    new_chat = {
-        "chatID": str(uuid.uuid4().hex[:5]),
-        "title": body.get("title", "New Request"),
-        "category": body.get("category", "general"),
-        "requesterUsername": "cool_guy", # <--- (GET FROM SUPABASE JOIN)
-        "responderUsername": None,
-        "status": "open",
-        "tokens": body.get("tokensToSpend", 0),
-        "createdAt": "2025-08-14T10:30:00Z",
-        "messages": [],
-        "requests": [{
-            "requestID": "req_" + uuid.uuid4().hex[:4],
-            "requestText": body.get("requestText"),
-            "status": "pending",
-            "tokensSpent": body.get("tokensToSpend", 0),
-            "createdAt": "2025-08-14T10:30:00Z"
-        }]
-    }
-    return jsonify(new_chat), HTTPStatus.CREATED
+    client = user_client(access_token)
+    payload, err = create_chat_with_initial_request(client, body)
+    if err == "invalid_tokens":
+        return return_error(
+            "BAD_REQUEST",
+            "Missing or invalid chat data: tokensToSpend must be a positive number",
+        )
+    if err or not payload:
+        return return_error("INTERNAL_SERVER_ERROR")
 
-# ------------------- GET /v1/requester/chats -------------------
+    chat_id = payload["chat_id"]
+    chat = get_chat_or_none(client, chat_id)
+    if not chat:
+        return return_error("INTERNAL_SERVER_ERROR")
+
+    return jsonify(build_chat_detail(client, chat)), HTTPStatus.CREATED
+
+
 @requester_bp.route("/v1/requester/chats", methods=["GET"])
 def list_chats():
-    _, error = require_access_token()
-    if error: return error
+    access_token, error = require_access_token()
+    if error:
+        return error
+    user, error = require_supabase_user(access_token)
+    if error:
+        return error
 
-    # <--- (WILL HAVE TO CHANGE TO SUPABASE LOGIC: Select chats where requester_id = current_user)
-    chats = [
-        {
-            "chatID": "12345", 
-            "title": "website design", 
-            "category": "development", 
-            "status": "open", 
-            "tokens": 30, 
-            "createdAt": "2025-08-14T10:30:00Z"
-        },
-        {
-            "chatID": "54321", 
-            "title": "poem request", 
-            "category": "writing", 
-            "status": "closed", 
-            "tokens": 40, 
-            "createdAt": "2025-08-13T09:00:00Z"
-        }
-    ]
-    return jsonify(chats), HTTPStatus.OK
+    client = user_client(access_token)
 
-# ------------------- GET /v1/requester/chats/{chatID} -------------------
+    chats = (
+        client.table("chats")
+        .select("*")
+        .eq("requester_id", str(user.id))
+        .order("created_at", desc=True)
+        .execute()
+        .data
+        or []
+    )
+
+    cids = [c["chat_id"] for c in chats]
+    totals = token_totals_by_chat(client, cids)
+    out = [chat_summary_dict(c, totals.get(c["chat_id"], 0)) for c in chats]
+    return jsonify(out), HTTPStatus.OK
+
+
 @requester_bp.route("/v1/requester/chats/<chatID>", methods=["GET"])
 def get_chat(chatID):
-    _, error = require_access_token()
-    if error: return error
+    access_token, error = require_access_token()
+    if error:
+        return error
+    user, error = require_supabase_user(access_token)
+    if error:
+        return error
 
-    # <--- (WILL HAVE TO CHANGE TO SUPABASE LOGIC: Fetch full chat details, messages, and requests)
-    if chatID == "404": 
+    client = user_client(access_token)
+    chat = get_chat_or_none(client, chatID)
+    if not chat:
         return return_error("NOT_FOUND")
 
-    return jsonify({
-        "chatID": chatID, 
-        "title": "Existing Chat",
-        "status": "open", 
-        "messages": [], 
-        "requests": []
-    }), HTTPStatus.OK
+    return jsonify(build_chat_detail(client, chat)), HTTPStatus.OK
 
-# ------------------- POST /v1/requester/chats/{chatID}/messages -------------------
+
 @requester_bp.route("/v1/requester/chats/<chatID>/messages", methods=["POST"])
 def send_message(chatID):
-    _, error = require_access_token()
-    if error: return error
+    access_token, error = require_access_token()
+    if error:
+        return error
+    user, error = require_supabase_user(access_token)
+    if error:
+        return error
 
     body = request.get_json(silent=True) or {}
     if "message" not in body:
-        return return_error("BAD_REQUEST", "Missing or invalid message data: missing field: message")
+        return return_error(
+            "BAD_REQUEST", "Missing or invalid message data: missing field: message"
+        )
 
-    # <--- (WILL HAVE TO CHANGE TO SUPABASE LOGIC: Insert into 'messages' table)
-    return jsonify({
-        "messageID": "msg_" + uuid.uuid4().hex[:4],
-        "senderType": "requester",
-        "message": body["message"],
-        "createdAt": "2026-04-05T10:35:00Z"
-    }), HTTPStatus.CREATED
+    client = user_client(access_token)
+    if not get_chat_or_none(client, chatID):
+        return return_error("NOT_FOUND")
 
-# ------------------- POST /v1/requester/chats/{chatID}/requests -------------------
+    try:
+        row = (
+            client.table("messages")
+            .insert(
+                {
+                    "chat_id": chatID,
+                    "sender_id": str(user.id),
+                    "sender_type": "requester",
+                    "message": body["message"],
+                }
+            )
+            .select("message_id,sender_type,message,created_at")
+            .single()
+            .execute()
+            .data
+        )
+    except APIError:
+        return return_error("FORBIDDEN", "You cannot post to this chat.")
+
+    return jsonify(message_dict(row)), HTTPStatus.CREATED
+
+
 @requester_bp.route("/v1/requester/chats/<chatID>/requests", methods=["POST"])
 def add_request(chatID):
-    _, error = require_access_token()
-    if error: return error
+    access_token, error = require_access_token()
+    if error:
+        return error
+    user, error = require_supabase_user(access_token)
+    if error:
+        return error
 
     body = request.get_json(silent=True) or {}
     if "requestText" not in body:
-        return return_error("BAD_REQUEST", "Missing or invalid request data: missing field: requestText")
+        return return_error(
+            "BAD_REQUEST", "Missing or invalid request data: missing field: requestText"
+        )
 
-    # <--- (WILL HAVE TO CHANGE TO SUPABASE LOGIC: Insert into 'requests' table linked to chatID)
-    return jsonify({
-        "requestID": "req_" + uuid.uuid4().hex[:4],
-        "requestText": body["requestText"],
-        "status": "pending",
-        "tokensSpent": body.get("tokensToSpend", 0),
-        "createdAt": "2026-04-05T11:00:00Z"
-    }), HTTPStatus.CREATED
+    tokens_raw = body.get("tokensToSpend")
+    if tokens_raw is None:
+        return return_error(
+            "BAD_REQUEST",
+            "Missing or invalid request data: tokensToSpend is required",
+        )
+    try:
+        tokens = int(tokens_raw)
+    except (TypeError, ValueError):
+        return return_error(
+            "BAD_REQUEST",
+            "Missing or invalid request data: invalid tokensToSpend",
+        )
+    if tokens <= 0:
+        return return_error(
+            "BAD_REQUEST",
+            "Missing or invalid request data: tokensToSpend must be positive",
+        )
 
-# ------------------- POST /v1/requester/chats/{chatID}/close -------------------
+    client = user_client(access_token)
+    if not get_chat_or_none(client, chatID):
+        return return_error("NOT_FOUND")
+
+    try:
+        row = (
+            client.table("requests")
+            .insert(
+                {
+                    "chat_id": chatID,
+                    "requester_id": str(user.id),
+                    "request_text": body["requestText"],
+                    "tokens_to_spend": tokens,
+                    "status": "pending",
+                }
+            )
+            .select("request_id,request_text,status,tokens_to_spend,created_at")
+            .single()
+            .execute()
+            .data
+        )
+    except APIError:
+        return return_error(
+            "CONFLICT",
+            "You do not have enough tokens to create a new request.",
+        )
+
+    return jsonify(request_dict(row)), HTTPStatus.CREATED
+
+
 @requester_bp.route("/v1/requester/chats/<chatID>/close", methods=["POST"])
 def close_chat(chatID):
-    _, error = require_access_token()
-    if error: return error
+    access_token, error = require_access_token()
+    if error:
+        return error
+    user, error = require_supabase_user(access_token)
+    if error:
+        return error
 
-    # <--- (WILL HAVE TO CHANGE TO SUPABASE LOGIC: Update chat status to 'closed')
+    client = user_client(access_token)
+    chat = get_chat_or_none(client, chatID)
+    if not chat:
+        return return_error("NOT_FOUND")
+
+    try:
+        client.table("chats").update(
+            {
+                "status": "closed",
+                "closed_at": datetime.now(timezone.utc).isoformat(),
+            }
+        ).eq("chat_id", chatID).execute()
+    except APIError:
+        return return_error("FORBIDDEN")
+
     return jsonify({"message": "Chat closed"}), HTTPStatus.OK
