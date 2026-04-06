@@ -7,6 +7,7 @@ from postgrest.exceptions import APIError
 from supabase_auth.errors import AuthApiError
 
 from app.chat_data import api_ts
+from app.config import supabase_email_redirect_to
 from app.routes.helpers import require_access_token, require_supabase_user, return_error
 from app.supabase_client import anon_client, user_client
 
@@ -50,7 +51,7 @@ def _user_payload(access_token: str, user) -> dict:
 def register():
     body = request.get_json(silent=True) or {}
 
-    required_fields = ["email", "password", "name", "userName"]
+    required_fields = ["email", "password", "name", "username"]
     for field in required_fields:
         if field not in body:
             return return_error(
@@ -58,17 +59,22 @@ def register():
                 f"Missing or invalid registration data: missing field: {field}",
             )
 
+    signup_options = {
+        "data": {
+            "username": body.get("username") or body.get("userName"),
+            "name": body["name"],
+        }
+    }
+    redirect_to = supabase_email_redirect_to()
+    if redirect_to:
+        signup_options["email_redirect_to"] = redirect_to
+
     try:
         auth_response = anon_client().auth.sign_up(
             {
                 "email": body["email"],
                 "password": body["password"],
-                "options": {
-                    "data": {
-                        "username": body["userName"],
-                        "name": body["name"],
-                    }
-                },
+                "options": signup_options,
             }
         )
     except AuthApiError as e:

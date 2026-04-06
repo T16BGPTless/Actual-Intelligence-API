@@ -302,7 +302,7 @@ def test_add_request_conflict_on_api_error(client, monkeypatch):
         "/v1/requester/chats/c1/requests",
         json={"requestText": "x", "tokensToSpend": 3},
     )
-    assert resp.status_code == 409
+    assert resp.status_code == 402
 
 
 def test_add_request_validation_branches(client, monkeypatch):

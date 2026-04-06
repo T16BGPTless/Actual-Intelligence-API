@@ -36,6 +36,13 @@ def test_require_access_token_valid_header():
         assert error is None
 
 
+def test_require_access_token_access_token_header():
+    with flask_app.test_request_context("/", headers={"AccessToken": "abc"}):
+        token, error = helpers.require_access_token()
+        assert token == "abc"
+        assert error is None
+
+
 def test_require_supabase_user_unauthorized_on_auth_error(monkeypatch):
     def raise_auth(_token):
         raise AuthApiError("bad", 401, None)

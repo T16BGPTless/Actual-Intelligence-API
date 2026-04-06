@@ -201,7 +201,7 @@ def add_request(chatID):
         )
     except APIError:
         return return_error(
-            "CONFLICT",
+            "PAYMENT_REQUIRED",
             "You do not have enough tokens to create a new request.",
         )
     # pylint: enable=no-member

@@ -54,7 +54,7 @@ def test_register_conflict_returns_409(client, monkeypatch):
             "email": "taken@example.com",
             "password": "pw",
             "name": "User",
-            "userName": "taken",
+            "username": "taken",
         },
     )
     assert resp.status_code == 409
@@ -70,7 +70,7 @@ def test_register_success_returns_201(client, monkeypatch):
             "email": "ok@example.com",
             "password": "pw",
             "name": "User",
-            "userName": "ok",
+            "username": "ok",
         },
     )
     assert resp.status_code == 201
@@ -181,7 +181,7 @@ def test_register_falls_back_to_login_when_session_missing(client, monkeypatch):
             "email": "ok@example.com",
             "password": "pw",
             "name": "User",
-            "userName": "ok",
+            "username": "ok",
         },
     )
     assert resp.status_code == 201
@@ -208,7 +208,7 @@ def test_register_forbidden_when_signup_has_no_session_and_fallback_fails(
             "email": "ok@example.com",
             "password": "pw",
             "name": "User",
-            "userName": "ok",
+            "username": "ok",
         },
     )
     assert resp.status_code == 403
@@ -226,7 +226,7 @@ def test_register_internal_error_when_user_missing(client, monkeypatch):
             "email": "ok@example.com",
             "password": "pw",
             "name": "User",
-            "userName": "ok",
+            "username": "ok",
         },
     )
     assert resp.status_code == 500
@@ -278,10 +278,44 @@ def test_register_bad_request_for_non_conflict_auth_error(client, monkeypatch):
             "email": "ok@example.com",
             "password": "pw",
             "name": "User",
-            "userName": "ok",
+            "username": "ok",
         },
     )
     assert resp.status_code == 400
+
+
+def test_register_passes_email_redirect_when_configured(client, monkeypatch):
+    captured = {}
+
+    def fake_sign_up(payload):
+        captured["payload"] = payload
+        return SimpleNamespace(session=SimpleNamespace(access_token="tok"), user=_fake_user())
+
+    fake_client = SimpleNamespace(
+        auth=SimpleNamespace(sign_up=fake_sign_up, sign_in_with_password=lambda *_a, **_k: None)
+    )
+    monkeypatch.setattr(auth_routes, "anon_client", lambda: fake_client)
+    monkeypatch.setattr(
+        auth_routes, "_user_payload", lambda _t, _u: {"email": "u@example.com"}
+    )
+    monkeypatch.setattr(
+        auth_routes, "supabase_email_redirect_to", lambda: "https://app.example.com/auth/callback"
+    )
+
+    resp = client.post(
+        "/v1/auth/register",
+        json={
+            "email": "ok@example.com",
+            "password": "pw",
+            "name": "User",
+            "username": "ok",
+        },
+    )
+    assert resp.status_code == 201
+    assert (
+        captured["payload"]["options"]["email_redirect_to"]
+        == "https://app.example.com/auth/callback"
+    )
 
 
 def test_register_forbidden_when_fallback_has_no_session(client, monkeypatch):
@@ -300,7 +334,7 @@ def test_register_forbidden_when_fallback_has_no_session(client, monkeypatch):
             "email": "ok@example.com",
             "password": "pw",
             "name": "User",
-            "userName": "ok",
+            "username": "ok",
         },
     )
     assert resp.status_code == 403
