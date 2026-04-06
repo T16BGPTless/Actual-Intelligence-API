@@ -78,6 +78,24 @@ def test_get_chat_not_found(client, monkeypatch):
     assert resp.status_code == 404
 
 
+def test_get_chat_success_and_user_error(client, monkeypatch):
+    _ok_auth(monkeypatch)
+    monkeypatch.setattr(requester_routes, "user_client", lambda _t: object())
+    monkeypatch.setattr(requester_routes, "get_chat_or_none", lambda _c, _id: {"chat_id": "c1"})
+    monkeypatch.setattr(
+        requester_routes, "build_chat_detail", lambda _c, _chat: {"chatID": "c1"}
+    )
+    assert client.get("/v1/requester/chats/c1").status_code == 200
+
+    monkeypatch.setattr(requester_routes, "require_access_token", lambda: ("tok", None))
+    monkeypatch.setattr(
+        requester_routes,
+        "require_supabase_user",
+        lambda _t: (None, ({"error": "UNAUTHORIZED"}, 401)),
+    )
+    assert client.get("/v1/requester/chats/c1").status_code == 401
+
+
 def test_send_message_success(client, monkeypatch):
     _ok_auth(monkeypatch, user_id="u1")
     fake = QueryChain({"message_id": "m1", "sender_type": "requester", "message": "hi"})
@@ -151,6 +169,17 @@ def test_add_request_success(client, monkeypatch):
     )
     assert resp.status_code == 201
     assert resp.json["requestID"] == "r1"
+
+
+def test_add_request_not_found_branch(client, monkeypatch):
+    _ok_auth(monkeypatch)
+    monkeypatch.setattr(requester_routes, "user_client", lambda _t: object())
+    monkeypatch.setattr(requester_routes, "get_chat_or_none", lambda *_a: None)
+    resp = client.post(
+        "/v1/requester/chats/c1/requests",
+        json={"requestText": "x", "tokensToSpend": 1},
+    )
+    assert resp.status_code == 404
 
 
 def test_close_chat_success(client, monkeypatch):

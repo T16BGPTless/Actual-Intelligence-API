@@ -133,6 +133,18 @@ def test_claim_chat_conflict_if_already_claimed(client, monkeypatch):
     assert resp.status_code == 409
 
 
+def test_claim_chat_not_found_and_auth_error(client, monkeypatch):
+    _ok_auth(monkeypatch)
+    monkeypatch.setattr(responder_routes, "user_client", lambda _t: object())
+    monkeypatch.setattr(responder_routes, "get_chat_or_none", lambda *_a: None)
+    assert client.post("/v1/responder/chats/c1/claim").status_code == 404
+
+    monkeypatch.setattr(
+        responder_routes, "require_access_token", lambda: (None, ({"error": "UNAUTHORIZED"}, 401))
+    )
+    assert client.post("/v1/responder/chats/c1/claim").status_code == 401
+
+
 def test_claim_chat_success(client, monkeypatch):
     _ok_auth(monkeypatch, user_id="res-1")
     chain = QueryChain([{"chat_id": "c1", "status": "open"}])
@@ -202,6 +214,23 @@ def test_send_message_success(client, monkeypatch):
     resp = client.post("/v1/responder/chats/c1/messages", json={"message": "ok"})
     assert resp.status_code == 201
     assert resp.json["messageID"] == "m2"
+
+
+def test_send_message_forbidden_on_api_error(client, monkeypatch):
+    _ok_auth(monkeypatch)
+
+    class BadChain(QueryChain):
+        def execute(self):
+            raise APIError({"message": "denied", "code": "42501"})
+
+    monkeypatch.setattr(
+        responder_routes,
+        "user_client",
+        lambda _t: SimpleNamespace(table=lambda _n: BadChain()),
+    )
+    monkeypatch.setattr(responder_routes, "get_chat_or_none", lambda *_a: {"chat_id": "c1"})
+    resp = client.post("/v1/responder/chats/c1/messages", json={"message": "ok"})
+    assert resp.status_code == 403
 
 
 def test_fulfill_request_missing_field(client, monkeypatch):
