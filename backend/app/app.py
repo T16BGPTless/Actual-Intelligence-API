@@ -19,7 +19,7 @@ app.register_blueprint(tokens_bp)
 def home():
     """Redirects to swagger docs."""
     return redirect(
-        "https://docs.gptless.au"
+        "https://ai-docs.gptless.au"
     )  # Prefereblly the actual actual intelligence doc
 
 
