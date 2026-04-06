@@ -114,14 +114,41 @@ def test_logout_unauthorized_returns_401(client, monkeypatch):
 
 def test_logout_success_returns_200(client, monkeypatch):
     monkeypatch.setattr(auth_routes, "require_access_token", lambda: ("tok", None))
+    called = {}
+
+    def fake_sign_out(jwt, scope):
+        called["jwt"] = jwt
+        called["scope"] = scope
+
+    fake_client = SimpleNamespace(
+        auth=SimpleNamespace(admin=SimpleNamespace(sign_out=fake_sign_out))
+    )
+    monkeypatch.setattr(auth_routes, "anon_client", lambda: fake_client)
     resp = client.post("/v1/auth/logout")
     assert resp.status_code == 200
     assert resp.json["message"] == "Logged out successfully"
+    assert called == {"jwt": "tok", "scope": "global"}
+
+
+def test_logout_invalid_token_returns_401(client, monkeypatch):
+    monkeypatch.setattr(auth_routes, "require_access_token", lambda: ("bad", None))
+
+    def fake_sign_out(_jwt, _scope):
+        raise AuthApiError("invalid", 401, None)
+
+    fake_client = SimpleNamespace(
+        auth=SimpleNamespace(admin=SimpleNamespace(sign_out=fake_sign_out))
+    )
+    monkeypatch.setattr(auth_routes, "anon_client", lambda: fake_client)
+    resp = client.post("/v1/auth/logout")
+    assert resp.status_code == 401
 
 
 def test_me_success_returns_user(client, monkeypatch):
     monkeypatch.setattr(auth_routes, "require_access_token", lambda: ("tok", None))
-    monkeypatch.setattr(auth_routes, "require_supabase_user", lambda _t: (_fake_user(), None))
+    monkeypatch.setattr(
+        auth_routes, "require_supabase_user", lambda _t: (_fake_user(), None)
+    )
     monkeypatch.setattr(
         auth_routes, "_user_payload", lambda _t, _u: {"email": "u@example.com"}
     )
@@ -130,9 +157,48 @@ def test_me_success_returns_user(client, monkeypatch):
     assert resp.json["email"] == "u@example.com"
 
 
-def test_register_forbidden_when_session_missing(client, monkeypatch):
-    fake_resp = SimpleNamespace(session=None, user=_fake_user())
-    fake_client = SimpleNamespace(auth=SimpleNamespace(sign_up=lambda *_a, **_k: fake_resp))
+def test_register_falls_back_to_login_when_session_missing(client, monkeypatch):
+    signup_resp = SimpleNamespace(session=None, user=_fake_user())
+    signin_resp = SimpleNamespace(
+        session=SimpleNamespace(access_token="fallback-token"),
+        user=_fake_user(),
+    )
+    fake_client = SimpleNamespace(
+        auth=SimpleNamespace(
+            sign_up=lambda *_a, **_k: signup_resp,
+            sign_in_with_password=lambda *_a, **_k: signin_resp,
+        )
+    )
+    monkeypatch.setattr(auth_routes, "anon_client", lambda: fake_client)
+    monkeypatch.setattr(
+        auth_routes, "_user_payload", lambda _t, _u: {"email": "u@example.com"}
+    )
+    resp = client.post(
+        "/v1/auth/register",
+        json={
+            "email": "ok@example.com",
+            "password": "pw",
+            "name": "User",
+            "userName": "ok",
+        },
+    )
+    assert resp.status_code == 201
+    assert resp.json["accessToken"] == "fallback-token"
+
+
+def test_register_forbidden_when_signup_has_no_session_and_fallback_fails(
+    client, monkeypatch
+):
+    signup_resp = SimpleNamespace(session=None, user=_fake_user())
+
+    def signin_fail(*_a, **_k):
+        raise AuthApiError("confirm email", 401, None)
+
+    fake_client = SimpleNamespace(
+        auth=SimpleNamespace(
+            sign_up=lambda *_a, **_k: signup_resp, sign_in_with_password=signin_fail
+        )
+    )
     monkeypatch.setattr(auth_routes, "anon_client", lambda: fake_client)
     resp = client.post(
         "/v1/auth/register",
@@ -148,7 +214,9 @@ def test_register_forbidden_when_session_missing(client, monkeypatch):
 
 def test_register_internal_error_when_user_missing(client, monkeypatch):
     fake_resp = SimpleNamespace(session=SimpleNamespace(access_token="tok"), user=None)
-    fake_client = SimpleNamespace(auth=SimpleNamespace(sign_up=lambda *_a, **_k: fake_resp))
+    fake_client = SimpleNamespace(
+        auth=SimpleNamespace(sign_up=lambda *_a, **_k: fake_resp)
+    )
     monkeypatch.setattr(auth_routes, "anon_client", lambda: fake_client)
     resp = client.post(
         "/v1/auth/register",
@@ -180,13 +248,17 @@ def test_login_unauthorized_when_response_missing_user(client, monkeypatch):
 
 
 def test_me_unauthorized_when_auth_missing(client, monkeypatch):
-    monkeypatch.setattr(auth_routes, "require_access_token", lambda: (None, (None, 401)))
+    monkeypatch.setattr(
+        auth_routes, "require_access_token", lambda: (None, (None, 401))
+    )
     resp = client.get("/v1/auth/me")
     assert resp.status_code == 401
 
 
 def test_me_unauthorized_when_user_lookup_fails(client, monkeypatch):
     monkeypatch.setattr(auth_routes, "require_access_token", lambda: ("tok", None))
-    monkeypatch.setattr(auth_routes, "require_supabase_user", lambda _t: (None, (None, 401)))
+    monkeypatch.setattr(
+        auth_routes, "require_supabase_user", lambda _t: (None, (None, 401))
+    )
     resp = client.get("/v1/auth/me")
     assert resp.status_code == 401

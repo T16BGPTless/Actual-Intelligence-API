@@ -78,10 +78,21 @@ def register():
         return return_error("BAD_REQUEST", e.message or "Registration failed")
 
     if not auth_response.session:
-        return return_error(
-            "FORBIDDEN",
-            "Confirm your email address before using the API.",
-        )
+        try:
+            auth_response = anon_client().auth.sign_in_with_password(
+                {"email": body["email"], "password": body["password"]}
+            )
+        except AuthApiError:
+            return return_error(
+                "FORBIDDEN",
+                "Confirm your email address before using the API.",
+            )
+
+        if not auth_response.session:
+            return return_error(
+                "FORBIDDEN",
+                "Confirm your email address before using the API.",
+            )
 
     user = auth_response.user
     if not user:
@@ -136,8 +147,13 @@ def login():
 
 @auth_bp.route("/v1/auth/logout", methods=["POST"])
 def logout():
-    _, error = require_access_token()
+    access_token, error = require_access_token()
     if error:
+        return return_error("UNAUTHORIZED", "Missing or invalid bearer token")
+
+    try:
+        anon_client().auth.admin.sign_out(access_token, "local")
+    except AuthApiError:
         return return_error("UNAUTHORIZED", "Missing or invalid bearer token")
 
     return jsonify({"message": "Logged out successfully"}), HTTPStatus.OK
