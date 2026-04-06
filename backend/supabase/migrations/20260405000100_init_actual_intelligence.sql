@@ -9,27 +9,27 @@ create extension if not exists pgcrypto;
 -- ----------
 do $$
 begin
-  if not exists (select 1 from pg_type where typname = 'app_role') then
+  if to_regtype('public.app_role') is null then
     create type public.app_role as enum ('requester', 'responder', 'developer', 'admin');
   end if;
 
-  if not exists (select 1 from pg_type where typname = 'chat_status') then
+  if to_regtype('public.chat_status') is null then
     create type public.chat_status as enum ('open', 'closed');
   end if;
 
-  if not exists (select 1 from pg_type where typname = 'claim_status') then
+  if to_regtype('public.claim_status') is null then
     create type public.claim_status as enum ('unclaimed', 'claimed');
   end if;
 
-  if not exists (select 1 from pg_type where typname = 'sender_type') then
+  if to_regtype('public.sender_type') is null then
     create type public.sender_type as enum ('requester', 'responder', 'system');
   end if;
 
-  if not exists (select 1 from pg_type where typname = 'request_status') then
+  if to_regtype('public.request_status') is null then
     create type public.request_status as enum ('pending', 'in_progress', 'fulfilled', 'cancelled');
   end if;
 
-  if not exists (select 1 from pg_type where typname = 'token_txn_type') then
+  if to_regtype('public.token_txn_type') is null then
     create type public.token_txn_type as enum ('buy', 'redeem', 'spend', 'refund', 'adjustment');
   end if;
 end
