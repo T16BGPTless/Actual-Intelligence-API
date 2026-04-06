@@ -157,6 +157,8 @@ def send_message(chatID):
     if not get_chat_or_none(client, chatID):
         return return_error("NOT_FOUND")
 
+    # supabase-py request builders are dynamically typed; pylint cannot infer chained members.
+    # pylint: disable=no-member
     try:
         row = (
             client.table("messages")
@@ -175,6 +177,7 @@ def send_message(chatID):
         )
     except APIError:
         return return_error("FORBIDDEN", "You do not have access to this content")
+    # pylint: enable=no-member
 
     return jsonify(message_dict(row)), HTTPStatus.CREATED
 

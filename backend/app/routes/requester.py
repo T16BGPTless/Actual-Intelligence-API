@@ -117,6 +117,8 @@ def send_message(chatID):
     if not get_chat_or_none(client, chatID):
         return return_error("NOT_FOUND")
 
+    # supabase-py request builders are dynamically typed; pylint cannot infer chained members.
+    # pylint: disable=no-member
     try:
         row = (
             client.table("messages")
@@ -135,6 +137,7 @@ def send_message(chatID):
         )
     except APIError:
         return return_error("FORBIDDEN", "You cannot post to this chat.")
+    # pylint: enable=no-member
 
     return jsonify(message_dict(row)), HTTPStatus.CREATED
 
@@ -177,6 +180,8 @@ def add_request(chatID):
     if not get_chat_or_none(client, chatID):
         return return_error("NOT_FOUND")
 
+    # supabase-py request builders are dynamically typed; pylint cannot infer chained members.
+    # pylint: disable=no-member
     try:
         row = (
             client.table("requests")
@@ -199,6 +204,7 @@ def add_request(chatID):
             "CONFLICT",
             "You do not have enough tokens to create a new request.",
         )
+    # pylint: enable=no-member
 
     return jsonify(request_dict(row)), HTTPStatus.CREATED
 
