@@ -36,12 +36,21 @@ def test_require_access_token_valid_header():
         assert error is None
 
 
+def test_require_access_token_access_token_header():
+    with flask_app.test_request_context("/", headers={"AccessToken": "abc"}):
+        token, error = helpers.require_access_token()
+        assert token == "abc"
+        assert error is None
+
+
 def test_require_supabase_user_unauthorized_on_auth_error(monkeypatch):
     def raise_auth(_token):
         raise AuthApiError("bad", 401, None)
 
     monkeypatch.setattr(
-        helpers, "anon_client", lambda: SimpleNamespace(auth=SimpleNamespace(get_user=raise_auth))
+        helpers,
+        "anon_client",
+        lambda: SimpleNamespace(auth=SimpleNamespace(get_user=raise_auth)),
     )
     with flask_app.app_context():
         user, error = helpers.require_supabase_user("bad")
@@ -53,7 +62,9 @@ def test_require_supabase_user_unauthorized_on_empty_user(monkeypatch):
     monkeypatch.setattr(
         helpers,
         "anon_client",
-        lambda: SimpleNamespace(auth=SimpleNamespace(get_user=lambda _t: SimpleNamespace(user=None))),
+        lambda: SimpleNamespace(
+            auth=SimpleNamespace(get_user=lambda _t: SimpleNamespace(user=None))
+        ),
     )
     with flask_app.app_context():
         user, error = helpers.require_supabase_user("tok")

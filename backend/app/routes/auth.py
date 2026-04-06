@@ -7,8 +7,9 @@ from postgrest.exceptions import APIError
 from supabase_auth.errors import AuthApiError
 
 from app.chat_data import api_ts
+from app.config import supabase_email_redirect_to
 from app.routes.helpers import require_access_token, require_supabase_user, return_error
-from app.supabase_client import anon_client, user_client
+from app.supabase_client import anon_client, service_client, user_client
 
 auth_bp = Blueprint("auth", __name__)
 
@@ -50,7 +51,7 @@ def _user_payload(access_token: str, user) -> dict:
 def register():
     body = request.get_json(silent=True) or {}
 
-    required_fields = ["email", "password", "name", "userName"]
+    required_fields = ["email", "password", "name", "username"]
     for field in required_fields:
         if field not in body:
             return return_error(
@@ -58,17 +59,22 @@ def register():
                 f"Missing or invalid registration data: missing field: {field}",
             )
 
+    signup_options = {
+        "data": {
+            "username": body.get("username") or body.get("userName"),
+            "name": body["name"],
+        }
+    }
+    redirect_to = supabase_email_redirect_to()
+    if redirect_to:
+        signup_options["email_redirect_to"] = redirect_to
+
     try:
         auth_response = anon_client().auth.sign_up(
             {
                 "email": body["email"],
                 "password": body["password"],
-                "options": {
-                    "data": {
-                        "username": body["userName"],
-                        "name": body["name"],
-                    }
-                },
+                "options": signup_options,
             }
         )
     except AuthApiError as e:
@@ -78,10 +84,21 @@ def register():
         return return_error("BAD_REQUEST", e.message or "Registration failed")
 
     if not auth_response.session:
-        return return_error(
-            "FORBIDDEN",
-            "Confirm your email address before using the API.",
-        )
+        try:
+            auth_response = anon_client().auth.sign_in_with_password(
+                {"email": body["email"], "password": body["password"]}
+            )
+        except AuthApiError:
+            return return_error(
+                "FORBIDDEN",
+                "Confirm your email address before using the API.",
+            )
+
+        if not auth_response.session:
+            return return_error(
+                "FORBIDDEN",
+                "Confirm your email address before using the API.",
+            )
 
     user = auth_response.user
     if not user:
@@ -136,8 +153,13 @@ def login():
 
 @auth_bp.route("/v1/auth/logout", methods=["POST"])
 def logout():
-    _, error = require_access_token()
+    access_token, error = require_access_token()
     if error:
+        return return_error("UNAUTHORIZED", "Missing or invalid bearer token")
+
+    try:
+        service_client().auth.admin.sign_out(access_token, "local")
+    except AuthApiError:
         return return_error("UNAUTHORIZED", "Missing or invalid bearer token")
 
     return jsonify({"message": "Logged out successfully"}), HTTPStatus.OK

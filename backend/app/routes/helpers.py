@@ -12,6 +12,10 @@ def return_error(error: str, custom_message: str = None) -> tuple[Response, int]
     """Return an error response formatted to the OpenAPI Error schema."""
     error_map = {
         "BAD_REQUEST": (HTTPStatus.BAD_REQUEST, "Missing or invalid data."),
+        "PAYMENT_REQUIRED": (
+            HTTPStatus.PAYMENT_REQUIRED,
+            "Payment is required to complete this request.",
+        ),
         "UNAUTHORIZED": (
             HTTPStatus.UNAUTHORIZED,
             "The API token is missing or invalid. If you do not have an API token "
@@ -40,15 +44,19 @@ def return_error(error: str, custom_message: str = None) -> tuple[Response, int]
 
 def require_access_token() -> tuple[str | None, tuple[Response, int] | None]:
     """Validate that the Authorization header is present and starts with Bearer."""
+    access_token_header = request.headers.get("AccessToken")
     auth_header = request.headers.get("Authorization")
 
-    # Check if header exists and follows "Bearer <token>" format
-    if not auth_header or not auth_header.startswith("Bearer "):
+    # OpenAPI declares `AccessToken` header; also allow Authorization Bearer.
+    if access_token_header:
+        return access_token_header, None
+    if auth_header and auth_header.startswith("Bearer "):
+        return auth_header.split(" ", 1)[1], None
+
+    # Missing both accepted auth header formats.
+    if not access_token_header and not auth_header:
         return None, return_error("UNAUTHORIZED")
-
-    access_token = auth_header.split(" ", 1)[1]
-
-    return access_token, None
+    return None, return_error("UNAUTHORIZED")
 
 
 def require_supabase_user(
