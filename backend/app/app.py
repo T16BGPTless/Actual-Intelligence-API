@@ -23,5 +23,6 @@ def home():
     )  # Prefereblly the actual actual intelligence doc
 
 
+# debug=True for now
 if __name__ == "__main__":
     app.run(debug=True)
