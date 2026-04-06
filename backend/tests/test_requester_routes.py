@@ -81,7 +81,9 @@ def test_get_chat_not_found(client, monkeypatch):
 def test_get_chat_success_and_user_error(client, monkeypatch):
     _ok_auth(monkeypatch)
     monkeypatch.setattr(requester_routes, "user_client", lambda _t: object())
-    monkeypatch.setattr(requester_routes, "get_chat_or_none", lambda _c, _id: {"chat_id": "c1"})
+    monkeypatch.setattr(
+        requester_routes, "get_chat_or_none", lambda _c, _id: {"chat_id": "c1"}
+    )
     monkeypatch.setattr(
         requester_routes, "build_chat_detail", lambda _c, _chat: {"chatID": "c1"}
     )
@@ -251,9 +253,13 @@ def test_create_chat_invalid_tokens_branch(client, monkeypatch):
     _ok_auth(monkeypatch)
     monkeypatch.setattr(requester_routes, "user_client", lambda _t: object())
     monkeypatch.setattr(
-        requester_routes, "create_chat_with_initial_request", lambda *_a: (None, "invalid_tokens")
+        requester_routes,
+        "create_chat_with_initial_request",
+        lambda *_a: (None, "invalid_tokens"),
     )
-    resp = client.post("/v1/requester/chats", json={"requestText": "x", "tokensToSpend": 0})
+    resp = client.post(
+        "/v1/requester/chats", json={"requestText": "x", "tokensToSpend": 0}
+    )
     assert resp.status_code == 400
 
 
@@ -265,14 +271,28 @@ def test_send_message_missing_body_field(client, monkeypatch):
 
 def test_send_message_auth_and_user_errors(client, monkeypatch):
     monkeypatch.setattr(
-        requester_routes, "require_access_token", lambda: (None, ({"error": "UNAUTHORIZED"}, 401))
+        requester_routes,
+        "require_access_token",
+        lambda: (None, ({"error": "UNAUTHORIZED"}, 401)),
     )
-    assert client.post("/v1/requester/chats/c1/messages", json={"message": "x"}).status_code == 401
+    assert (
+        client.post(
+            "/v1/requester/chats/c1/messages", json={"message": "x"}
+        ).status_code
+        == 401
+    )
     monkeypatch.setattr(requester_routes, "require_access_token", lambda: ("tok", None))
     monkeypatch.setattr(
-        requester_routes, "require_supabase_user", lambda _t: (None, ({"error": "UNAUTHORIZED"}, 401))
+        requester_routes,
+        "require_supabase_user",
+        lambda _t: (None, ({"error": "UNAUTHORIZED"}, 401)),
     )
-    assert client.post("/v1/requester/chats/c1/messages", json={"message": "x"}).status_code == 401
+    assert (
+        client.post(
+            "/v1/requester/chats/c1/messages", json={"message": "x"}
+        ).status_code
+        == 401
+    )
 
 
 def test_send_message_not_found(client, monkeypatch):
@@ -326,7 +346,9 @@ def test_add_request_validation_branches(client, monkeypatch):
 
 def test_add_request_auth_and_user_errors(client, monkeypatch):
     monkeypatch.setattr(
-        requester_routes, "require_access_token", lambda: (None, ({"error": "UNAUTHORIZED"}, 401))
+        requester_routes,
+        "require_access_token",
+        lambda: (None, ({"error": "UNAUTHORIZED"}, 401)),
     )
     assert (
         client.post(
@@ -337,7 +359,9 @@ def test_add_request_auth_and_user_errors(client, monkeypatch):
     )
     monkeypatch.setattr(requester_routes, "require_access_token", lambda: ("tok", None))
     monkeypatch.setattr(
-        requester_routes, "require_supabase_user", lambda _t: (None, ({"error": "UNAUTHORIZED"}, 401))
+        requester_routes,
+        "require_supabase_user",
+        lambda _t: (None, ({"error": "UNAUTHORIZED"}, 401)),
     )
     assert (
         client.post(
@@ -371,11 +395,15 @@ def test_close_chat_not_found_and_forbidden(client, monkeypatch):
 
 def test_close_chat_auth_and_user_errors(client, monkeypatch):
     monkeypatch.setattr(
-        requester_routes, "require_access_token", lambda: (None, ({"error": "UNAUTHORIZED"}, 401))
+        requester_routes,
+        "require_access_token",
+        lambda: (None, ({"error": "UNAUTHORIZED"}, 401)),
     )
     assert client.post("/v1/requester/chats/c1/close").status_code == 401
     monkeypatch.setattr(requester_routes, "require_access_token", lambda: ("tok", None))
     monkeypatch.setattr(
-        requester_routes, "require_supabase_user", lambda _t: (None, ({"error": "UNAUTHORIZED"}, 401))
+        requester_routes,
+        "require_supabase_user",
+        lambda _t: (None, ({"error": "UNAUTHORIZED"}, 401)),
     )
     assert client.post("/v1/requester/chats/c1/close").status_code == 401

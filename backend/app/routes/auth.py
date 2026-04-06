@@ -9,7 +9,7 @@ from supabase_auth.errors import AuthApiError
 from app.chat_data import api_ts
 from app.config import supabase_email_redirect_to
 from app.routes.helpers import require_access_token, require_supabase_user, return_error
-from app.supabase_client import anon_client, user_client
+from app.supabase_client import anon_client, service_client, user_client
 
 auth_bp = Blueprint("auth", __name__)
 
@@ -158,7 +158,7 @@ def logout():
         return return_error("UNAUTHORIZED", "Missing or invalid bearer token")
 
     try:
-        anon_client().auth.admin.sign_out(access_token, "local")
+        service_client().auth.admin.sign_out(access_token, "local")
     except AuthApiError:
         return return_error("UNAUTHORIZED", "Missing or invalid bearer token")
 

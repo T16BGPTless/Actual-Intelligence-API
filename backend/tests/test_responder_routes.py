@@ -43,12 +43,18 @@ def test_list_chats_with_category_filter_branch(client, monkeypatch):
     _ok_auth(monkeypatch)
     fake = QueryChain([{"chat_id": "c1", "status": "open"}])
     monkeypatch.setattr(
-        responder_routes, "user_client", lambda _t: SimpleNamespace(table=lambda _n: fake)
+        responder_routes,
+        "user_client",
+        lambda _t: SimpleNamespace(table=lambda _n: fake),
     )
-    monkeypatch.setattr(responder_routes, "categories_from_flask_arg", lambda *_a: ["dev"])
+    monkeypatch.setattr(
+        responder_routes, "categories_from_flask_arg", lambda *_a: ["dev"]
+    )
     monkeypatch.setattr(responder_routes, "token_totals_by_chat", lambda *_a: {"c1": 1})
     monkeypatch.setattr(
-        responder_routes, "chat_summary_dict", lambda chat, _tokens: {"chatID": chat["chat_id"]}
+        responder_routes,
+        "chat_summary_dict",
+        lambda chat, _tokens: {"chatID": chat["chat_id"]},
     )
     resp = client.get("/v1/responder/chats")
     assert resp.status_code == 200
@@ -80,12 +86,18 @@ def test_list_unclaimed_with_category_filter_branch(client, monkeypatch):
     _ok_auth(monkeypatch)
     fake = QueryChain([{"chat_id": "u1", "status": "open"}])
     monkeypatch.setattr(
-        responder_routes, "user_client", lambda _t: SimpleNamespace(table=lambda _n: fake)
+        responder_routes,
+        "user_client",
+        lambda _t: SimpleNamespace(table=lambda _n: fake),
     )
-    monkeypatch.setattr(responder_routes, "categories_from_flask_arg", lambda *_a: ["dev"])
+    monkeypatch.setattr(
+        responder_routes, "categories_from_flask_arg", lambda *_a: ["dev"]
+    )
     monkeypatch.setattr(responder_routes, "token_totals_by_chat", lambda *_a: {"u1": 1})
     monkeypatch.setattr(
-        responder_routes, "chat_summary_dict", lambda chat, _tokens: {"chatID": chat["chat_id"]}
+        responder_routes,
+        "chat_summary_dict",
+        lambda chat, _tokens: {"chatID": chat["chat_id"]},
     )
     resp = client.get("/v1/responder/chats/unclaimed")
     assert resp.status_code == 200
@@ -94,7 +106,9 @@ def test_list_unclaimed_with_category_filter_branch(client, monkeypatch):
 def test_list_unclaimed_user_error(client, monkeypatch):
     monkeypatch.setattr(responder_routes, "require_access_token", lambda: ("tok", None))
     monkeypatch.setattr(
-        responder_routes, "require_supabase_user", lambda _t: (None, ({"error": "UNAUTHORIZED"}, 401))
+        responder_routes,
+        "require_supabase_user",
+        lambda _t: (None, ({"error": "UNAUTHORIZED"}, 401)),
     )
     assert client.get("/v1/responder/chats/unclaimed").status_code == 401
 
@@ -110,13 +124,19 @@ def test_get_chat_not_found(client, monkeypatch):
 def test_get_chat_success_and_user_error(client, monkeypatch):
     _ok_auth(monkeypatch)
     monkeypatch.setattr(responder_routes, "user_client", lambda _t: object())
-    monkeypatch.setattr(responder_routes, "get_chat_or_none", lambda *_a: {"chat_id": "c1"})
-    monkeypatch.setattr(responder_routes, "build_chat_detail", lambda *_a: {"chatID": "c1"})
+    monkeypatch.setattr(
+        responder_routes, "get_chat_or_none", lambda *_a: {"chat_id": "c1"}
+    )
+    monkeypatch.setattr(
+        responder_routes, "build_chat_detail", lambda *_a: {"chatID": "c1"}
+    )
     assert client.get("/v1/responder/chats/c1").status_code == 200
 
     monkeypatch.setattr(responder_routes, "require_access_token", lambda: ("tok", None))
     monkeypatch.setattr(
-        responder_routes, "require_supabase_user", lambda _t: (None, ({"error": "UNAUTHORIZED"}, 401))
+        responder_routes,
+        "require_supabase_user",
+        lambda _t: (None, ({"error": "UNAUTHORIZED"}, 401)),
     )
     assert client.get("/v1/responder/chats/c1").status_code == 401
 
@@ -140,7 +160,9 @@ def test_claim_chat_not_found_and_auth_error(client, monkeypatch):
     assert client.post("/v1/responder/chats/c1/claim").status_code == 404
 
     monkeypatch.setattr(
-        responder_routes, "require_access_token", lambda: (None, ({"error": "UNAUTHORIZED"}, 401))
+        responder_routes,
+        "require_access_token",
+        lambda: (None, ({"error": "UNAUTHORIZED"}, 401)),
     )
     assert client.post("/v1/responder/chats/c1/claim").status_code == 401
 
@@ -228,7 +250,9 @@ def test_send_message_forbidden_on_api_error(client, monkeypatch):
         "user_client",
         lambda _t: SimpleNamespace(table=lambda _n: BadChain()),
     )
-    monkeypatch.setattr(responder_routes, "get_chat_or_none", lambda *_a: {"chat_id": "c1"})
+    monkeypatch.setattr(
+        responder_routes, "get_chat_or_none", lambda *_a: {"chat_id": "c1"}
+    )
     resp = client.post("/v1/responder/chats/c1/messages", json={"message": "ok"})
     assert resp.status_code == 403
 
@@ -374,14 +398,28 @@ def test_send_message_missing_or_not_found(client, monkeypatch):
     )
 
     monkeypatch.setattr(
-        responder_routes, "require_access_token", lambda: (None, ({"error": "UNAUTHORIZED"}, 401))
+        responder_routes,
+        "require_access_token",
+        lambda: (None, ({"error": "UNAUTHORIZED"}, 401)),
     )
-    assert client.post("/v1/responder/chats/c1/messages", json={"message": "x"}).status_code == 401
+    assert (
+        client.post(
+            "/v1/responder/chats/c1/messages", json={"message": "x"}
+        ).status_code
+        == 401
+    )
     monkeypatch.setattr(responder_routes, "require_access_token", lambda: ("tok", None))
     monkeypatch.setattr(
-        responder_routes, "require_supabase_user", lambda _t: (None, ({"error": "UNAUTHORIZED"}, 401))
+        responder_routes,
+        "require_supabase_user",
+        lambda _t: (None, ({"error": "UNAUTHORIZED"}, 401)),
     )
-    assert client.post("/v1/responder/chats/c1/messages", json={"message": "x"}).status_code == 401
+    assert (
+        client.post(
+            "/v1/responder/chats/c1/messages", json={"message": "x"}
+        ).status_code
+        == 401
+    )
 
 
 def test_fulfill_request_not_found_and_internal(client, monkeypatch):
@@ -429,24 +467,34 @@ def test_fulfill_request_not_found_and_internal(client, monkeypatch):
 
 def test_fulfill_request_auth_user_and_select_error_paths(client, monkeypatch):
     monkeypatch.setattr(
-        responder_routes, "require_access_token", lambda: (None, ({"error": "UNAUTHORIZED"}, 401))
+        responder_routes,
+        "require_access_token",
+        lambda: (None, ({"error": "UNAUTHORIZED"}, 401)),
     )
     assert (
-        client.post("/v1/responder/chats/c1/fulfill-request", json={"responseText": "x"}).status_code
+        client.post(
+            "/v1/responder/chats/c1/fulfill-request", json={"responseText": "x"}
+        ).status_code
         == 401
     )
 
     monkeypatch.setattr(responder_routes, "require_access_token", lambda: ("tok", None))
     monkeypatch.setattr(
-        responder_routes, "require_supabase_user", lambda _t: (None, ({"error": "UNAUTHORIZED"}, 401))
+        responder_routes,
+        "require_supabase_user",
+        lambda _t: (None, ({"error": "UNAUTHORIZED"}, 401)),
     )
     assert (
-        client.post("/v1/responder/chats/c1/fulfill-request", json={"responseText": "x"}).status_code
+        client.post(
+            "/v1/responder/chats/c1/fulfill-request", json={"responseText": "x"}
+        ).status_code
         == 401
     )
 
     _ok_auth(monkeypatch)
-    monkeypatch.setattr(responder_routes, "get_chat_or_none", lambda *_a: {"chat_id": "c1"})
+    monkeypatch.setattr(
+        responder_routes, "get_chat_or_none", lambda *_a: {"chat_id": "c1"}
+    )
     monkeypatch.setattr(
         responder_routes,
         "fulfill_request_rpc",
@@ -463,6 +511,8 @@ def test_fulfill_request_auth_user_and_select_error_paths(client, monkeypatch):
         lambda _t: SimpleNamespace(table=lambda _n: BadChain()),
     )
     assert (
-        client.post("/v1/responder/chats/c1/fulfill-request", json={"responseText": "x"}).status_code
+        client.post(
+            "/v1/responder/chats/c1/fulfill-request", json={"responseText": "x"}
+        ).status_code
         == 500
     )

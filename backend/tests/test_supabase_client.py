@@ -37,3 +37,20 @@ def test_user_client_sets_postgrest_auth(monkeypatch):
     out = supabase_client.user_client("access-token")
     assert out is fake_client
     assert called["token"] == "access-token"
+
+
+def test_service_client_uses_service_role_key(monkeypatch):
+    monkeypatch.setattr(supabase_client, "supabase_url", lambda: "http://supa")
+    monkeypatch.setattr(supabase_client, "supabase_service_role_key", lambda: "service")
+
+    called = {}
+
+    def fake_create_client(url, key):
+        called["url"] = url
+        called["key"] = key
+        return SimpleNamespace(postgrest=SimpleNamespace(auth=lambda _t: None))
+
+    monkeypatch.setattr(supabase_client, "create_client", fake_create_client)
+    client = supabase_client.service_client()
+    assert client is not None
+    assert called == {"url": "http://supa", "key": "service"}
