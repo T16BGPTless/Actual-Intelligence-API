@@ -166,3 +166,102 @@ def test_fulfill_request_success(client, monkeypatch):
     )
     assert resp.status_code == 201
     assert resp.json["fulfillmentID"] == "f1"
+
+
+def test_responder_routes_unauthorized_paths(client, monkeypatch):
+    monkeypatch.setattr(
+        responder_routes, "require_access_token", lambda: (None, ({"error": "UNAUTHORIZED"}, 401))
+    )
+    assert client.get("/v1/responder/chats").status_code == 401
+    assert client.get("/v1/responder/chats/unclaimed").status_code == 401
+    assert client.get("/v1/responder/chats/c1").status_code == 401
+
+
+def test_responder_routes_user_check_error(client, monkeypatch):
+    monkeypatch.setattr(responder_routes, "require_access_token", lambda: ("tok", None))
+    monkeypatch.setattr(
+        responder_routes, "require_supabase_user", lambda _t: (None, ({"error": "UNAUTHORIZED"}, 401))
+    )
+    assert client.get("/v1/responder/chats").status_code == 401
+    assert client.post("/v1/responder/chats/c1/claim").status_code == 401
+
+
+def test_claim_chat_bad_request_and_internal_error(client, monkeypatch):
+    _ok_auth(monkeypatch)
+    monkeypatch.setattr(responder_routes, "user_client", lambda _t: object())
+    monkeypatch.setattr(
+        responder_routes,
+        "get_chat_or_none",
+        lambda *_a: {"responder_id": None, "claim_state": "claimed", "status": "open"},
+    )
+    assert client.post("/v1/responder/chats/c1/claim").status_code == 400
+
+    class BadChain(QueryChain):
+        def execute(self):
+            raise APIError({"message": "boom", "code": "XX000"})
+
+    monkeypatch.setattr(
+        responder_routes,
+        "user_client",
+        lambda _t: SimpleNamespace(table=lambda _n: BadChain()),
+    )
+    monkeypatch.setattr(
+        responder_routes,
+        "get_chat_or_none",
+        lambda *_a: {"responder_id": None, "claim_state": "unclaimed", "status": "open"},
+    )
+    assert client.post("/v1/responder/chats/c1/claim").status_code == 500
+
+
+def test_claim_chat_conflict_when_update_returns_empty(client, monkeypatch):
+    _ok_auth(monkeypatch)
+    monkeypatch.setattr(
+        responder_routes,
+        "user_client",
+        lambda _t: SimpleNamespace(table=lambda _n: QueryChain([])),
+    )
+    monkeypatch.setattr(
+        responder_routes,
+        "get_chat_or_none",
+        lambda *_a: {"responder_id": None, "claim_state": "unclaimed", "status": "open"},
+    )
+    assert client.post("/v1/responder/chats/c1/claim").status_code == 409
+
+
+def test_send_message_missing_or_not_found(client, monkeypatch):
+    _ok_auth(monkeypatch)
+    assert client.post("/v1/responder/chats/c1/messages", json={}).status_code == 400
+    monkeypatch.setattr(responder_routes, "user_client", lambda _t: object())
+    monkeypatch.setattr(responder_routes, "get_chat_or_none", lambda *_a: None)
+    assert client.post("/v1/responder/chats/c1/messages", json={"message": "x"}).status_code == 404
+
+
+def test_fulfill_request_not_found_and_internal(client, monkeypatch):
+    _ok_auth(monkeypatch)
+    monkeypatch.setattr(responder_routes, "user_client", lambda _t: object())
+    monkeypatch.setattr(responder_routes, "get_chat_or_none", lambda *_a: None)
+    assert (
+        client.post("/v1/responder/chats/c1/fulfill-request", json={"responseText": "x"}).status_code
+        == 404
+    )
+
+    monkeypatch.setattr(responder_routes, "get_chat_or_none", lambda *_a: {"chat_id": "c1"})
+    monkeypatch.setattr(responder_routes, "fulfill_request_rpc", lambda *_a: (None, "rpc_failed"))
+    assert (
+        client.post("/v1/responder/chats/c1/fulfill-request", json={"responseText": "x"}).status_code
+        == 500
+    )
+
+    fake = QueryChain(None)
+    monkeypatch.setattr(
+        responder_routes, "user_client", lambda _t: SimpleNamespace(table=lambda _n: fake)
+    )
+    monkeypatch.setattr(
+        responder_routes,
+        "fulfill_request_rpc",
+        lambda *_a: ({"fulfillment_id": "f1", "request_id": "r1"}, None),
+    )
+    assert (
+        client.post("/v1/responder/chats/c1/fulfill-request", json={"responseText": "x"}).status_code
+        == 500
+    )

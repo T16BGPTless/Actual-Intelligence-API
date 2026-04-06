@@ -128,3 +128,65 @@ def test_me_success_returns_user(client, monkeypatch):
     resp = client.get("/v1/auth/me")
     assert resp.status_code == 200
     assert resp.json["email"] == "u@example.com"
+
+
+def test_register_forbidden_when_session_missing(client, monkeypatch):
+    fake_resp = SimpleNamespace(session=None, user=_fake_user())
+    fake_client = SimpleNamespace(auth=SimpleNamespace(sign_up=lambda *_a, **_k: fake_resp))
+    monkeypatch.setattr(auth_routes, "anon_client", lambda: fake_client)
+    resp = client.post(
+        "/v1/auth/register",
+        json={
+            "email": "ok@example.com",
+            "password": "pw",
+            "name": "User",
+            "userName": "ok",
+        },
+    )
+    assert resp.status_code == 403
+
+
+def test_register_internal_error_when_user_missing(client, monkeypatch):
+    fake_resp = SimpleNamespace(session=SimpleNamespace(access_token="tok"), user=None)
+    fake_client = SimpleNamespace(auth=SimpleNamespace(sign_up=lambda *_a, **_k: fake_resp))
+    monkeypatch.setattr(auth_routes, "anon_client", lambda: fake_client)
+    resp = client.post(
+        "/v1/auth/register",
+        json={
+            "email": "ok@example.com",
+            "password": "pw",
+            "name": "User",
+            "userName": "ok",
+        },
+    )
+    assert resp.status_code == 500
+
+
+def test_login_requires_email(client):
+    resp = client.post("/v1/auth/login", json={"password": "pw"})
+    assert resp.status_code == 400
+
+
+def test_login_unauthorized_when_response_missing_user(client, monkeypatch):
+    fake_resp = SimpleNamespace(session=SimpleNamespace(access_token="tok"), user=None)
+    fake_client = SimpleNamespace(
+        auth=SimpleNamespace(sign_in_with_password=lambda *_a, **_k: fake_resp)
+    )
+    monkeypatch.setattr(auth_routes, "anon_client", lambda: fake_client)
+    resp = client.post(
+        "/v1/auth/login", json={"email": "u@example.com", "password": "pw"}
+    )
+    assert resp.status_code == 401
+
+
+def test_me_unauthorized_when_auth_missing(client, monkeypatch):
+    monkeypatch.setattr(auth_routes, "require_access_token", lambda: (None, (None, 401)))
+    resp = client.get("/v1/auth/me")
+    assert resp.status_code == 401
+
+
+def test_me_unauthorized_when_user_lookup_fails(client, monkeypatch):
+    monkeypatch.setattr(auth_routes, "require_access_token", lambda: ("tok", None))
+    monkeypatch.setattr(auth_routes, "require_supabase_user", lambda _t: (None, (None, 401)))
+    resp = client.get("/v1/auth/me")
+    assert resp.status_code == 401
