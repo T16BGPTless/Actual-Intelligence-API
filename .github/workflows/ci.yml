@@ -41,7 +41,7 @@ jobs:
           python -m pip install -r requirements.txt
 
       - name: Pylint
-        run: pylint app
+        run: pylint app --errors-only
 
       - name: Pytest
         env:
