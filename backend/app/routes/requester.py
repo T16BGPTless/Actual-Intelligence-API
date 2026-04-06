@@ -1,7 +1,7 @@
 """Requester side endpoints."""
 
+from datetime import UTC, datetime
 from http import HTTPStatus
-from datetime import datetime, timezone
 
 from flask import Blueprint, jsonify, request
 from postgrest.exceptions import APIError
@@ -15,7 +15,7 @@ from app.chat_data import (
     request_dict,
     token_totals_by_chat,
 )
-from app.routes.helpers import return_error, require_access_token, require_supabase_user
+from app.routes.helpers import require_access_token, require_supabase_user, return_error
 from app.supabase_client import user_client
 
 requester_bp = Blueprint("requester", __name__)
@@ -26,7 +26,7 @@ def create_chat():
     access_token, error = require_access_token()
     if error:
         return error
-    user, error = require_supabase_user(access_token)
+    _, error = require_supabase_user(access_token)
     if error:
         return error
 
@@ -86,7 +86,7 @@ def get_chat(chatID):
     access_token, error = require_access_token()
     if error:
         return error
-    user, error = require_supabase_user(access_token)
+    _, error = require_supabase_user(access_token)
     if error:
         return error
 
@@ -208,7 +208,7 @@ def close_chat(chatID):
     access_token, error = require_access_token()
     if error:
         return error
-    user, error = require_supabase_user(access_token)
+    _, error = require_supabase_user(access_token)
     if error:
         return error
 
@@ -221,7 +221,7 @@ def close_chat(chatID):
         client.table("chats").update(
             {
                 "status": "closed",
-                "closed_at": datetime.now(timezone.utc).isoformat(),
+                "closed_at": datetime.now(UTC).isoformat(),
             }
         ).eq("chat_id", chatID).execute()
     except APIError:

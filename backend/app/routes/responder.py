@@ -15,7 +15,7 @@ from app.chat_data import (
     message_dict,
     token_totals_by_chat,
 )
-from app.routes.helpers import return_error, require_access_token, require_supabase_user
+from app.routes.helpers import require_access_token, require_supabase_user, return_error
 from app.supabase_client import user_client
 
 responder_bp = Blueprint("responder", __name__)

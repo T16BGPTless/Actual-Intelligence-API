@@ -1,7 +1,8 @@
 """Helper functions for the routes."""
 
 from http import HTTPStatus
-from flask import jsonify, request, Response
+
+from flask import Response, jsonify, request
 from supabase_auth.errors import AuthApiError
 
 from app.supabase_client import anon_client

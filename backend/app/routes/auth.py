@@ -7,7 +7,7 @@ from postgrest.exceptions import APIError
 from supabase_auth.errors import AuthApiError
 
 from app.chat_data import api_ts
-from app.routes.helpers import return_error, require_access_token, require_supabase_user
+from app.routes.helpers import require_access_token, require_supabase_user, return_error
 from app.supabase_client import anon_client, user_client
 
 auth_bp = Blueprint("auth", __name__)
