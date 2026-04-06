@@ -19,6 +19,7 @@ tags:
 security:
   - AccessTokenAuth: []
 
+
 paths:
   /v1/requester/chats:
     post:
