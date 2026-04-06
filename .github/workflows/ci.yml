@@ -43,7 +43,10 @@ jobs:
       - name: Pylint
         run: pylint app --errors-only
 
-      - name: Pytest
+      - name: Pytest with coverage
         env:
           PYTHONPATH: ${{ github.workspace }}/backend
-        run: pytest
+        run: coverage run -m pytest
+        run: coverage report -m
+        run: coverage xml
+        run: coverage html
