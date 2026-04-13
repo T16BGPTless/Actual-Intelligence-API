@@ -12,7 +12,6 @@ import {
   Typography,
 } from '@mui/material';
 
-// 🔥 CHANGE THIS PORT if needed
 const BACKEND_URL = "http://localhost:5000";
 
 function Register() {
@@ -30,32 +29,34 @@ function Register() {
     setError('');
 
     if (password !== confirmPassword) {
-      setError('Passwords do not match.');
-      return;
+        setError('Passwords do not match.');
+        return;
     }
 
     try {
-      const res = await axios.post(`${BACKEND_URL}/v1/auth/register`, {
+        const res = await axios.post(`${BACKEND_URL}/v1/auth/register`, {
         email,
         password,
         name,
         username,
-      });
+        });
 
-      // ✅ Store correct key
-      localStorage.setItem('token', res.data.accessToken);
-      localStorage.setItem('email', email);
+        localStorage.setItem('token', res.data.accessToken);
+        localStorage.setItem('email', email);
 
-      navigate('/');
+        navigate('/');
     } catch (err) {
-      const backendError =
+        console.log(err);
+
+        const backendMessage =
         err.response?.data?.message ||
         err.response?.data?.error ||
+        err.message ||
         'Registration failed';
 
-      setError(backendError);
+        setError(backendMessage);
     }
-  };
+    };
 
   return (
     <Container maxWidth="sm">
@@ -122,6 +123,7 @@ function Register() {
             variant="contained"
             fullWidth
             sx={{ mt: 3 }}
+            onClick={registerUser}
             type="submit"
           >
             Register
