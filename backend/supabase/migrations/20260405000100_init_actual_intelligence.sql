@@ -45,11 +45,20 @@ language plpgsql
 security definer
 set search_path = public
 as $$
+declare
+  v_username text;
+  v_account_id uuid;
 begin
+  v_username := coalesce(
+    new.raw_user_meta_data ->> 'username',
+    split_part(new.email, '@', 1),
+    'user_' || substr(new.id::text, 1, 8)
+  );
+
   insert into public.profiles (user_id, username, display_name)
   values (
     new.id,
-    coalesce(new.raw_user_meta_data ->> 'username', split_part(new.email, '@', 1)),
+    v_username,
     coalesce(new.raw_user_meta_data ->> 'name', split_part(new.email, '@', 1))
   )
   on conflict (user_id) do nothing;
@@ -57,6 +66,26 @@ begin
   insert into public.user_roles (user_id, role)
   values (new.id, 'requester')
   on conflict do nothing;
+
+  insert into public.accounts (account_name, created_by)
+  values (v_username, new.id)
+  on conflict (account_name) do nothing
+  returning account_id into v_account_id;
+
+  if v_account_id is null then
+    select a.account_id
+      into v_account_id
+      from public.accounts a
+     where a.created_by = new.id
+     order by a.created_at asc
+     limit 1;
+  end if;
+
+  if v_account_id is not null then
+    insert into public.token_balances (account_id, balance)
+    values (v_account_id, 0)
+    on conflict (account_id) do nothing;
+  end if;
 
   return new;
 end;
@@ -112,6 +141,27 @@ create table if not exists public.token_transactions (
   request_id text,
   created_by uuid references auth.users(id) on delete set null,
   created_at timestamptz not null default now()
+);
+
+-- Backfill default accounts for existing users missing one.
+insert into public.accounts (account_name, created_by)
+select p.username, p.user_id
+from public.profiles p
+where not exists (
+  select 1
+  from public.accounts a
+  where a.created_by = p.user_id
+)
+on conflict (account_name) do nothing;
+
+-- Ensure every account has a token balance row.
+insert into public.token_balances (account_id, balance)
+select a.account_id, 0
+from public.accounts a
+where not exists (
+  select 1
+  from public.token_balances tb
+  where tb.account_id = a.account_id
 );
 
 -- ----------

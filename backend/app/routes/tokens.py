@@ -36,9 +36,10 @@ def _require_positive_tokens(body: dict) -> int | None:
 
 
 def _developer_or_admin(access_token: str, user_id: str) -> bool:
+    _ = access_token  # Auth is already validated by require_supabase_user.
     try:
         rows = _execute_data(
-            user_client(access_token)
+            service_client()
             .table("user_roles")
             .select("role")
             .eq("user_id", user_id)
@@ -51,12 +52,21 @@ def _developer_or_admin(access_token: str, user_id: str) -> bool:
     return len(rows) > 0
 
 
+def _account_for_name(client, account_name: str):
+    return _execute_data(
+        client.table("accounts")
+        .select("account_id,account_name,created_by")
+        .eq("account_name", account_name)
+        .maybe_single()
+    )
+
+
 @tokens_bp.route("/v1/tokens", methods=["GET"])
 def get_tokens():
     access_token, error = require_access_token()
     if error:
         return error
-    _, error = require_supabase_user(access_token)
+    user, error = require_supabase_user(access_token)
     if error:
         return error
 
@@ -65,19 +75,16 @@ def get_tokens():
     if not account_name:
         return return_error("BAD_REQUEST", "Missing or invalid data: accountName is required")
 
-    client = user_client(access_token)
+    client = service_client()
     try:
-        account = _execute_data(
-            client.table("accounts")
-            .select("account_id,account_name")
-            .eq("account_name", account_name)
-            .maybe_single()
-        )
+        account = _account_for_name(client, account_name)
     except APIError:
-        return return_error("FORBIDDEN")
+        return return_error("INTERNAL_SERVER_ERROR")
 
     if not account:
         return return_error("NOT_FOUND", "accountName cannot be found")
+    if str(account.get("created_by")) != str(user.id):
+        return return_error("FORBIDDEN")
 
     try:
         balance_row = _execute_data(
@@ -87,7 +94,7 @@ def get_tokens():
             .maybe_single()
         )
     except APIError:
-        return return_error("FORBIDDEN")
+        return return_error("INTERNAL_SERVER_ERROR")
 
     balance = int((balance_row or {}).get("balance") or 0)
     return (
@@ -105,12 +112,6 @@ def buy_tokens():
     if error:
         return error
 
-    if not _developer_or_admin(access_token, str(user.id)):
-        return return_error(
-            "FORBIDDEN",
-            "You do not have access to make these changes. These paths are developer only",
-        )
-
     body = request.get_json(silent=True) or {}
     account_name = _require_account_name(body)
     tokens = _require_positive_tokens(body)
@@ -119,17 +120,16 @@ def buy_tokens():
 
     client = service_client()
     try:
-        account = _execute_data(
-            client.table("accounts")
-            .select("account_id,account_name")
-            .eq("account_name", account_name)
-            .maybe_single()
-        )
+        account = _account_for_name(client, account_name)
     except APIError:
         return return_error("INTERNAL_SERVER_ERROR")
 
     if not account:
         return return_error("NOT_FOUND", "accountName cannot be found")
+    is_privileged = _developer_or_admin(access_token, str(user.id))
+    is_owner = str(account.get("created_by")) == str(user.id)
+    if not (is_privileged or is_owner):
+        return return_error("FORBIDDEN")
 
     account_id = account["account_id"]
     try:
@@ -183,12 +183,6 @@ def redeem_tokens():
     if error:
         return error
 
-    if not _developer_or_admin(access_token, str(user.id)):
-        return return_error(
-            "FORBIDDEN",
-            "You do not have access to make these changes. These paths are developer only",
-        )
-
     body = request.get_json(silent=True) or {}
     account_name = _require_account_name(body)
     tokens = _require_positive_tokens(body)
@@ -197,17 +191,16 @@ def redeem_tokens():
 
     client = service_client()
     try:
-        account = _execute_data(
-            client.table("accounts")
-            .select("account_id,account_name")
-            .eq("account_name", account_name)
-            .maybe_single()
-        )
+        account = _account_for_name(client, account_name)
     except APIError:
         return return_error("INTERNAL_SERVER_ERROR")
 
     if not account:
         return return_error("NOT_FOUND", "accountName cannot be found")
+    is_privileged = _developer_or_admin(access_token, str(user.id))
+    is_owner = str(account.get("created_by")) == str(user.id)
+    if not (is_privileged or is_owner):
+        return return_error("FORBIDDEN")
 
     account_id = account["account_id"]
     try:

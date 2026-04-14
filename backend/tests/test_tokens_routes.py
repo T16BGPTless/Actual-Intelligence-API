@@ -19,14 +19,16 @@ def _ok_auth(monkeypatch, user_id="u1"):
 
 def test_get_tokens_success(client, monkeypatch):
     _ok_auth(monkeypatch)
-    user_chain = QueryChain({"account_id": "a1", "account_name": "Main"})
+    account_chain = QueryChain(
+        {"account_id": "a1", "account_name": "Main", "created_by": "u1"}
+    )
     balance_chain = QueryChain({"balance": 42})
 
     def table(name):
-        return user_chain if name == "accounts" else balance_chain
+        return account_chain if name == "accounts" else balance_chain
 
     monkeypatch.setattr(
-        tokens_routes, "user_client", lambda _t: SimpleNamespace(table=table)
+        tokens_routes, "service_client", lambda: SimpleNamespace(table=table)
     )
     resp = client.get("/v1/tokens", json={"accountName": "Main"})
     assert resp.status_code == 200
@@ -43,14 +45,28 @@ def test_get_tokens_not_found(client, monkeypatch):
     _ok_auth(monkeypatch)
     monkeypatch.setattr(
         tokens_routes,
-        "user_client",
-        lambda _t: SimpleNamespace(table=lambda _n: QueryChain(None)),
+        "service_client",
+        lambda: SimpleNamespace(table=lambda _n: QueryChain(None)),
     )
     resp = client.get("/v1/tokens", json={"accountName": "Missing"})
     assert resp.status_code == 404
 
 
-def test_get_tokens_forbidden_on_api_error(client, monkeypatch):
+def test_get_tokens_forbidden_when_not_account_owner(client, monkeypatch):
+    _ok_auth(monkeypatch)
+    account_chain = QueryChain(
+        {"account_id": "a1", "account_name": "Main", "created_by": "someone-else"}
+    )
+    monkeypatch.setattr(
+        tokens_routes,
+        "service_client",
+        lambda: SimpleNamespace(table=lambda _n: account_chain),
+    )
+    resp = client.get("/v1/tokens", json={"accountName": "Main"})
+    assert resp.status_code == 403
+
+
+def test_get_tokens_internal_on_api_error(client, monkeypatch):
     _ok_auth(monkeypatch)
 
     class BadChain(QueryChain):
@@ -59,11 +75,11 @@ def test_get_tokens_forbidden_on_api_error(client, monkeypatch):
 
     monkeypatch.setattr(
         tokens_routes,
-        "user_client",
-        lambda _t: SimpleNamespace(table=lambda _n: BadChain()),
+        "service_client",
+        lambda: SimpleNamespace(table=lambda _n: BadChain()),
     )
     resp = client.get("/v1/tokens", json={"accountName": "Main"})
-    assert resp.status_code == 403
+    assert resp.status_code == 500
 
 
 def test_get_tokens_handles_none_execute_result(client, monkeypatch):
@@ -75,8 +91,8 @@ def test_get_tokens_handles_none_execute_result(client, monkeypatch):
 
     monkeypatch.setattr(
         tokens_routes,
-        "user_client",
-        lambda _t: SimpleNamespace(table=lambda _n: NoneChain()),
+        "service_client",
+        lambda: SimpleNamespace(table=lambda _n: NoneChain()),
     )
     resp = client.get("/v1/tokens", json={"accountName": "Main"})
     assert resp.status_code == 404
@@ -86,7 +102,9 @@ def test_buy_tokens_success(client, monkeypatch):
     _ok_auth(monkeypatch, user_id="dev-user")
     monkeypatch.setattr(tokens_routes, "_developer_or_admin", lambda *_a: True)
 
-    account_chain = QueryChain({"account_id": "a1", "account_name": "Main"})
+    account_chain = QueryChain(
+        {"account_id": "a1", "account_name": "Main", "created_by": "dev-user"}
+    )
     balance_chain = QueryChain({"balance": 10})
     write_chain = QueryChain()
 
@@ -109,6 +127,15 @@ def test_buy_tokens_success(client, monkeypatch):
 def test_buy_tokens_forbidden_when_not_developer(client, monkeypatch):
     _ok_auth(monkeypatch)
     monkeypatch.setattr(tokens_routes, "_developer_or_admin", lambda *_a: False)
+    monkeypatch.setattr(
+        tokens_routes,
+        "service_client",
+        lambda: SimpleNamespace(
+            table=lambda _n: QueryChain(
+                {"account_id": "a1", "account_name": "Main", "created_by": "other-user"}
+            )
+        ),
+    )
     resp = client.post("/v1/tokens/buy", json={"accountName": "Main", "tokens": 5})
     assert resp.status_code == 403
 
@@ -125,11 +152,38 @@ def test_buy_tokens_not_found(client, monkeypatch):
     assert resp.status_code == 404
 
 
+def test_buy_tokens_success_for_requester_owner(client, monkeypatch):
+    _ok_auth(monkeypatch, user_id="u1")
+    monkeypatch.setattr(tokens_routes, "_developer_or_admin", lambda *_a: False)
+
+    account_chain = QueryChain(
+        {"account_id": "a1", "account_name": "Main", "created_by": "u1"}
+    )
+    balance_chain = QueryChain({"balance": 2})
+    write_chain = QueryChain()
+
+    def table(name):
+        if name == "accounts":
+            return account_chain
+        if name == "token_balances":
+            return balance_chain
+        return write_chain
+
+    monkeypatch.setattr(
+        tokens_routes, "service_client", lambda: SimpleNamespace(table=table)
+    )
+    resp = client.post("/v1/tokens/buy", json={"accountName": "Main", "tokens": 3})
+    assert resp.status_code == 200
+    assert resp.json["tokenBalance"] == 5
+
+
 def test_redeem_tokens_success(client, monkeypatch):
     _ok_auth(monkeypatch, user_id="dev-user")
     monkeypatch.setattr(tokens_routes, "_developer_or_admin", lambda *_a: True)
 
-    account_chain = QueryChain({"account_id": "a1", "account_name": "Main"})
+    account_chain = QueryChain(
+        {"account_id": "a1", "account_name": "Main", "created_by": "dev-user"}
+    )
     balance_chain = QueryChain({"balance": 20})
     write_chain = QueryChain()
 
@@ -157,7 +211,9 @@ def test_redeem_tokens_conflict_when_insufficient_balance(client, monkeypatch):
     _ok_auth(monkeypatch)
     monkeypatch.setattr(tokens_routes, "_developer_or_admin", lambda *_a: True)
 
-    account_chain = QueryChain({"account_id": "a1", "account_name": "Main"})
+    account_chain = QueryChain(
+        {"account_id": "a1", "account_name": "Main", "created_by": "u1"}
+    )
     balance_chain = QueryChain({"balance": 3})
 
     def table(name):
@@ -168,6 +224,31 @@ def test_redeem_tokens_conflict_when_insufficient_balance(client, monkeypatch):
     )
     resp = client.post("/v1/tokens/redeem", json={"accountName": "Main", "tokens": 9})
     assert resp.status_code == 409
+
+
+def test_redeem_tokens_success_for_requester_owner(client, monkeypatch):
+    _ok_auth(monkeypatch, user_id="u1")
+    monkeypatch.setattr(tokens_routes, "_developer_or_admin", lambda *_a: False)
+
+    account_chain = QueryChain(
+        {"account_id": "a1", "account_name": "Main", "created_by": "u1"}
+    )
+    balance_chain = QueryChain({"balance": 9})
+    write_chain = QueryChain()
+
+    def table(name):
+        if name == "accounts":
+            return account_chain
+        if name == "token_balances":
+            return balance_chain
+        return write_chain
+
+    monkeypatch.setattr(
+        tokens_routes, "service_client", lambda: SimpleNamespace(table=table)
+    )
+    resp = client.post("/v1/tokens/redeem", json={"accountName": "Main", "tokens": 4})
+    assert resp.status_code == 200
+    assert resp.json["tokenBalance"] == 5
 
 
 def test_tokens_routes_auth_errors(client, monkeypatch):
