@@ -34,6 +34,9 @@ class QueryChain:
     def insert(self, *_args, **_kwargs):
         return self
 
+    def delete(self, *_args, **_kwargs):
+        return self
+
     def maybe_single(self, *_args, **_kwargs):
         return self
 

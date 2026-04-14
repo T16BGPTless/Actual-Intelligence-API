@@ -250,6 +250,24 @@ def test_register_internal_error_when_user_missing(client, monkeypatch):
     assert resp.status_code == 500
 
 
+def test_register_internal_error_when_session_and_user_missing(client, monkeypatch):
+    fake_resp = SimpleNamespace(session=None, user=None)
+    fake_client = SimpleNamespace(
+        auth=SimpleNamespace(sign_up=lambda *_a, **_k: fake_resp)
+    )
+    monkeypatch.setattr(auth_routes, "anon_client", lambda: fake_client)
+    resp = client.post(
+        "/v1/auth/register",
+        json={
+            "email": "ok@example.com",
+            "password": "pw",
+            "name": "User",
+            "username": "ok",
+        },
+    )
+    assert resp.status_code == 500
+
+
 def test_login_requires_email(client):
     resp = client.post("/v1/auth/login", json={"password": "pw"})
     assert resp.status_code == 400
@@ -429,3 +447,116 @@ def test_user_payload_falls_back_to_metadata_on_profile_error(monkeypatch):
     payload = auth_routes._user_payload("tok", _fake_user())
     assert payload["username"] == "u1"
     assert payload["name"] == "User One"
+
+
+def test_get_role_success_defaults_requester(client, monkeypatch):
+    monkeypatch.setattr(auth_routes, "require_access_token", lambda: ("tok", None))
+    monkeypatch.setattr(
+        auth_routes, "require_supabase_user", lambda _t: (_fake_user(), None)
+    )
+    fake_client = SimpleNamespace(
+        table=lambda _n: QueryChain([]),
+    )
+    monkeypatch.setattr(auth_routes, "service_client", lambda: fake_client)
+    resp = client.get("/v1/auth/role")
+    assert resp.status_code == 200
+    assert resp.json["role"] == "requester"
+
+
+def test_get_role_prefers_responder_when_both_exist(client, monkeypatch):
+    monkeypatch.setattr(auth_routes, "require_access_token", lambda: ("tok", None))
+    monkeypatch.setattr(
+        auth_routes, "require_supabase_user", lambda _t: (_fake_user(), None)
+    )
+    fake_client = SimpleNamespace(
+        table=lambda _n: QueryChain([{"role": "requester"}, {"role": "responder"}]),
+    )
+    monkeypatch.setattr(auth_routes, "service_client", lambda: fake_client)
+    resp = client.get("/v1/auth/role")
+    assert resp.status_code == 200
+    assert resp.json["role"] == "responder"
+
+
+def test_get_role_internal_error_on_api_failure(client, monkeypatch):
+    monkeypatch.setattr(auth_routes, "require_access_token", lambda: ("tok", None))
+    monkeypatch.setattr(
+        auth_routes, "require_supabase_user", lambda _t: (_fake_user(), None)
+    )
+
+    class BadChain(QueryChain):
+        def execute(self):
+            raise APIError({"message": "boom"})
+
+    monkeypatch.setattr(
+        auth_routes,
+        "service_client",
+        lambda: SimpleNamespace(table=lambda _n: BadChain()),
+    )
+    resp = client.get("/v1/auth/role")
+    assert resp.status_code == 500
+
+
+def test_get_role_unauthorized_paths(client, monkeypatch):
+    monkeypatch.setattr(
+        auth_routes, "require_access_token", lambda: (None, (None, 401))
+    )
+    assert client.get("/v1/auth/role").status_code == 401
+
+    monkeypatch.setattr(auth_routes, "require_access_token", lambda: ("tok", None))
+    monkeypatch.setattr(
+        auth_routes, "require_supabase_user", lambda _t: (None, (None, 401))
+    )
+    assert client.get("/v1/auth/role").status_code == 401
+
+
+def test_update_role_success(client, monkeypatch):
+    monkeypatch.setattr(auth_routes, "require_access_token", lambda: ("tok", None))
+    monkeypatch.setattr(
+        auth_routes, "require_supabase_user", lambda _t: (_fake_user(), None)
+    )
+    fake_client = SimpleNamespace(table=lambda _n: QueryChain())
+    monkeypatch.setattr(auth_routes, "service_client", lambda: fake_client)
+    resp = client.put("/v1/auth/role", json={"role": "responder"})
+    assert resp.status_code == 200
+    assert resp.json["role"] == "responder"
+
+
+def test_update_role_bad_request_on_invalid_role(client, monkeypatch):
+    monkeypatch.setattr(auth_routes, "require_access_token", lambda: ("tok", None))
+    monkeypatch.setattr(
+        auth_routes, "require_supabase_user", lambda _t: (_fake_user(), None)
+    )
+    resp = client.put("/v1/auth/role", json={"role": "admin"})
+    assert resp.status_code == 400
+
+
+def test_update_role_internal_error_on_api_failure(client, monkeypatch):
+    monkeypatch.setattr(auth_routes, "require_access_token", lambda: ("tok", None))
+    monkeypatch.setattr(
+        auth_routes, "require_supabase_user", lambda _t: (_fake_user(), None)
+    )
+
+    class BadChain(QueryChain):
+        def execute(self):
+            raise APIError({"message": "boom"})
+
+    monkeypatch.setattr(
+        auth_routes,
+        "service_client",
+        lambda: SimpleNamespace(table=lambda _n: BadChain()),
+    )
+    resp = client.put("/v1/auth/role", json={"role": "requester"})
+    assert resp.status_code == 500
+
+
+def test_update_role_unauthorized_paths(client, monkeypatch):
+    monkeypatch.setattr(
+        auth_routes, "require_access_token", lambda: (None, (None, 401))
+    )
+    assert client.put("/v1/auth/role", json={"role": "requester"}).status_code == 401
+
+    monkeypatch.setattr(auth_routes, "require_access_token", lambda: ("tok", None))
+    monkeypatch.setattr(
+        auth_routes, "require_supabase_user", lambda _t: (None, (None, 401))
+    )
+    assert client.put("/v1/auth/role", json={"role": "requester"}).status_code == 401

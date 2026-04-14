@@ -1776,6 +1776,134 @@ paths:
                     error: INTERNAL_SERVER_ERROR
                     message: An internal server error occurred.
 
+  /v1/auth/role:
+    get:
+      tags: [Auth]
+      summary: get the current active user role
+      description: |
+        Returns the currently authenticated user's active app role.
+
+      parameters:
+        - $ref: "#/components/parameters/AccessToken"
+
+      responses:
+        "200":
+          description: |
+            **OK**
+            
+            Returns the active role for the authenticated user.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RoleResponse"
+
+        "401":
+          description: |
+            **Unauthorized**
+            
+            Missing or invalid bearer token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              examples:
+                UNAUTHORIZED:
+                  summary: UNAUTHORIZED
+                  value:
+                    error: UNAUTHORIZED
+                    message: Missing or invalid bearer token
+
+        "500":
+          description: |
+            **Internal Server Error**
+            
+            There was an internal server error. If this persists contact us at contact@gptless.au.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              examples:
+                INTERNAL_SERVER_ERROR:
+                  summary: INTERNAL_SERVER_ERROR
+                  value:
+                    error: INTERNAL_SERVER_ERROR
+                    message: An internal server error occurred.
+
+    put:
+      tags: [Auth]
+      summary: update the current active user role
+      description: |
+        Sets the currently authenticated user's active app role.
+
+      parameters:
+        - $ref: "#/components/parameters/AccessToken"
+
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateRoleRequest"
+
+      responses:
+        "200":
+          description: |
+            **OK**
+            
+            Returns the updated active role.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RoleResponse"
+
+        "400":
+          description: |
+            **Bad Request**
+            
+            Missing or invalid role data.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              examples:
+                BAD_REQUEST:
+                  summary: BAD_REQUEST
+                  value:
+                    error: BAD_REQUEST
+                    message: "Missing or invalid role data: invalid role"
+
+        "401":
+          description: |
+            **Unauthorized**
+            
+            Missing or invalid bearer token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              examples:
+                UNAUTHORIZED:
+                  summary: UNAUTHORIZED
+                  value:
+                    error: UNAUTHORIZED
+                    message: Missing or invalid bearer token
+
+        "500":
+          description: |
+            **Internal Server Error**
+            
+            There was an internal server error. If this persists contact us at contact@gptless.au.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              examples:
+                INTERNAL_SERVER_ERROR:
+                  summary: INTERNAL_SERVER_ERROR
+                  value:
+                    error: INTERNAL_SERVER_ERROR
+                    message: An internal server error occurred.
+
 
 
 components:
@@ -2003,6 +2131,16 @@ components:
         - email
         - password
 
+    UpdateRoleRequest:
+      type: object
+      properties:
+        role:
+          type: string
+          enum: [requester, responder]
+          example: responder
+      required:
+        - role
+
     User:
       type: object
       properties:
@@ -2035,6 +2173,14 @@ components:
           example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9
         user:
           $ref: "#/components/schemas/User"
+
+    RoleResponse:
+      type: object
+      properties:
+        role:
+          type: string
+          enum: [requester, responder]
+          example: requester
 
     Error:
       type: object
