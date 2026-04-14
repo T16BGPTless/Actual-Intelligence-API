@@ -120,24 +120,21 @@ def send_message(chatID):
     # supabase-py request builders are dynamically typed; pylint cannot infer chained members.
     # pylint: disable=no-member
     try:
-        row = (
-            client.table("messages")
-            .insert(
-                {
-                    "chat_id": chatID,
-                    "sender_id": str(user.id),
-                    "sender_type": "requester",
-                    "message": body["message"],
-                }
-            )
-            .select("message_id,sender_type,message,created_at")
-            .single()
-            .execute()
-            .data
-        )
+        row = client.table("messages").insert(
+            {
+                "chat_id": chatID,
+                "sender_id": str(user.id),
+                "sender_type": "requester",
+                "message": body["message"],
+            }
+        ).execute().data
     except APIError:
         return return_error("FORBIDDEN", "You cannot post to this chat.")
     # pylint: enable=no-member
+    if isinstance(row, list):
+        row = row[0] if row else None
+    if not row:
+        return return_error("INTERNAL_SERVER_ERROR")
 
     return jsonify(message_dict(row)), HTTPStatus.CREATED
 
@@ -183,28 +180,25 @@ def add_request(chatID):
     # supabase-py request builders are dynamically typed; pylint cannot infer chained members.
     # pylint: disable=no-member
     try:
-        row = (
-            client.table("requests")
-            .insert(
-                {
-                    "chat_id": chatID,
-                    "requester_id": str(user.id),
-                    "request_text": body["requestText"],
-                    "tokens_to_spend": tokens,
-                    "status": "pending",
-                }
-            )
-            .select("request_id,request_text,status,tokens_to_spend,created_at")
-            .single()
-            .execute()
-            .data
-        )
+        row = client.table("requests").insert(
+            {
+                "chat_id": chatID,
+                "requester_id": str(user.id),
+                "request_text": body["requestText"],
+                "tokens_to_spend": tokens,
+                "status": "pending",
+            }
+        ).execute().data
     except APIError:
         return return_error(
             "PAYMENT_REQUIRED",
             "You do not have enough tokens to create a new request.",
         )
     # pylint: enable=no-member
+    if isinstance(row, list):
+        row = row[0] if row else None
+    if not row:
+        return return_error("INTERNAL_SERVER_ERROR")
 
     return jsonify(request_dict(row)), HTTPStatus.CREATED
 

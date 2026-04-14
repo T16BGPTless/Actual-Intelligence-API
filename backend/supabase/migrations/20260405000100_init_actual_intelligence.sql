@@ -76,7 +76,8 @@ create table if not exists public.profiles (
   user_id uuid primary key references auth.users(id) on delete cascade,
   username text not null unique,
   display_name text not null,
-  created_at timestamptz not null default now()
+  created_at timestamptz not null default now(),
+  last_online_at timestamptz
 );
 
 create table if not exists public.user_roles (
@@ -94,14 +95,6 @@ create table if not exists public.accounts (
   account_name text not null unique,
   created_by uuid not null references auth.users(id) on delete restrict,
   created_at timestamptz not null default now()
-);
-
-create table if not exists public.account_members (
-  account_id uuid not null references public.accounts(account_id) on delete cascade,
-  user_id uuid not null references auth.users(id) on delete cascade,
-  is_owner boolean not null default false,
-  joined_at timestamptz not null default now(),
-  primary key (account_id, user_id)
 );
 
 create table if not exists public.token_balances (
@@ -169,7 +162,6 @@ create table if not exists public.fulfillments (
 -- Indexes
 -- ----------
 create index if not exists idx_user_roles_user_id on public.user_roles(user_id);
-create index if not exists idx_account_members_user_id on public.account_members(user_id);
 create index if not exists idx_token_transactions_account_created_at on public.token_transactions(account_id, created_at desc);
 create index if not exists idx_chats_requester on public.chats(requester_id, created_at desc);
 create index if not exists idx_chats_responder on public.chats(responder_id, created_at desc);
@@ -206,19 +198,6 @@ as $$
   );
 $$;
 
-create or replace function public.is_account_member(p_account_id uuid)
-returns boolean
-language sql
-stable
-as $$
-  select exists (
-    select 1
-    from public.account_members am
-    where am.account_id = p_account_id
-      and am.user_id = auth.uid()
-  );
-$$;
-
 create or replace function public.is_account_owner(p_account_id uuid)
 returns boolean
 language sql
@@ -226,10 +205,9 @@ stable
 as $$
   select exists (
     select 1
-    from public.account_members am
-    where am.account_id = p_account_id
-      and am.user_id = auth.uid()
-      and am.is_owner = true
+    from public.accounts a
+    where a.account_id = p_account_id
+      and a.created_by = auth.uid()
   );
 $$;
 
@@ -239,7 +217,6 @@ $$;
 alter table public.profiles enable row level security;
 alter table public.user_roles enable row level security;
 alter table public.accounts enable row level security;
-alter table public.account_members enable row level security;
 alter table public.token_balances enable row level security;
 alter table public.token_transactions enable row level security;
 alter table public.chats enable row level security;
@@ -307,40 +284,27 @@ using (user_id = auth.uid());
 -- ----------
 -- Account/token policies
 -- ----------
-create policy "accounts_select_member"
+create policy "accounts_select_owner"
 on public.accounts
 for select
 to authenticated
-using (public.is_account_member(account_id));
+using (public.is_account_owner(account_id));
 
-create policy "account_members_select_member"
-on public.account_members
-for select
-to authenticated
-using (public.is_account_member(account_id));
-
-create policy "token_balances_select_member"
+create policy "token_balances_select_owner"
 on public.token_balances
 for select
 to authenticated
-using (public.is_account_member(account_id));
+using (public.is_account_owner(account_id));
 
-create policy "token_txn_select_member"
+create policy "token_txn_select_owner"
 on public.token_transactions
 for select
 to authenticated
-using (public.is_account_member(account_id));
+using (public.is_account_owner(account_id));
 
 -- Developer/admin style write access for token management endpoints.
 create policy "accounts_write_developer"
 on public.accounts
-for all
-to authenticated
-using (public.has_role('developer') or public.has_role('admin'))
-with check (public.has_role('developer') or public.has_role('admin'));
-
-create policy "account_members_write_developer"
-on public.account_members
 for all
 to authenticated
 using (public.has_role('developer') or public.has_role('admin'))

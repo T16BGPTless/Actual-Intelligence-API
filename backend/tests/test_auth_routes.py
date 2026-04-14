@@ -171,7 +171,18 @@ def test_register_falls_back_to_login_when_session_missing(client, monkeypatch):
             sign_in_with_password=lambda *_a, **_k: signin_resp,
         )
     )
+    updated = {}
+    fake_service_client = SimpleNamespace(
+        auth=SimpleNamespace(
+            admin=SimpleNamespace(
+                update_user_by_id=lambda user_id, payload: updated.update(
+                    {"user_id": user_id, "payload": payload}
+                )
+            )
+        )
+    )
     monkeypatch.setattr(auth_routes, "anon_client", lambda: fake_client)
+    monkeypatch.setattr(auth_routes, "service_client", lambda: fake_service_client)
     monkeypatch.setattr(
         auth_routes, "_user_payload", lambda _t, _u: {"email": "u@example.com"}
     )
@@ -186,6 +197,7 @@ def test_register_falls_back_to_login_when_session_missing(client, monkeypatch):
     )
     assert resp.status_code == 201
     assert resp.json["accessToken"] == "fallback-token"
+    assert updated == {"user_id": "user-1", "payload": {"email_confirm": True}}
 
 
 def test_register_forbidden_when_signup_has_no_session_and_fallback_fails(
@@ -201,7 +213,13 @@ def test_register_forbidden_when_signup_has_no_session_and_fallback_fails(
             sign_up=lambda *_a, **_k: signup_resp, sign_in_with_password=signin_fail
         )
     )
+    fake_service_client = SimpleNamespace(
+        auth=SimpleNamespace(
+            admin=SimpleNamespace(update_user_by_id=lambda *_a, **_k: None)
+        )
+    )
     monkeypatch.setattr(auth_routes, "anon_client", lambda: fake_client)
+    monkeypatch.setattr(auth_routes, "service_client", lambda: fake_service_client)
     resp = client.post(
         "/v1/auth/register",
         json={
@@ -333,7 +351,13 @@ def test_register_forbidden_when_fallback_has_no_session(client, monkeypatch):
             sign_in_with_password=lambda *_a, **_k: signin_resp,
         )
     )
+    fake_service_client = SimpleNamespace(
+        auth=SimpleNamespace(
+            admin=SimpleNamespace(update_user_by_id=lambda *_a, **_k: None)
+        )
+    )
     monkeypatch.setattr(auth_routes, "anon_client", lambda: fake_client)
+    monkeypatch.setattr(auth_routes, "service_client", lambda: fake_service_client)
     resp = client.post(
         "/v1/auth/register",
         json={
@@ -344,6 +368,35 @@ def test_register_forbidden_when_fallback_has_no_session(client, monkeypatch):
         },
     )
     assert resp.status_code == 403
+
+
+def test_register_internal_error_when_autoconfirm_fails(client, monkeypatch):
+    signup_resp = SimpleNamespace(session=None, user=_fake_user())
+
+    def update_fail(*_a, **_k):
+        raise AuthApiError("nope", 400, None)
+
+    fake_client = SimpleNamespace(
+        auth=SimpleNamespace(
+            sign_up=lambda *_a, **_k: signup_resp,
+            sign_in_with_password=lambda *_a, **_k: None,
+        )
+    )
+    fake_service_client = SimpleNamespace(
+        auth=SimpleNamespace(admin=SimpleNamespace(update_user_by_id=update_fail))
+    )
+    monkeypatch.setattr(auth_routes, "anon_client", lambda: fake_client)
+    monkeypatch.setattr(auth_routes, "service_client", lambda: fake_service_client)
+    resp = client.post(
+        "/v1/auth/register",
+        json={
+            "email": "ok@example.com",
+            "password": "pw",
+            "name": "User",
+            "username": "ok",
+        },
+    )
+    assert resp.status_code == 500
 
 
 def test_user_payload_prefers_profile_data(monkeypatch):
@@ -359,7 +412,7 @@ def test_user_payload_prefers_profile_data(monkeypatch):
         auth_routes, "user_client", lambda _t: SimpleNamespace(table=lambda _n: chain)
     )
     payload = auth_routes._user_payload("tok", fake_user)
-    assert payload["userName"] == "from_profile"
+    assert payload["username"] == "from_profile"
     assert payload["name"] == "Profile Name"
 
 
@@ -374,5 +427,5 @@ def test_user_payload_falls_back_to_metadata_on_profile_error(monkeypatch):
         lambda _t: SimpleNamespace(table=lambda _n: BadChain()),
     )
     payload = auth_routes._user_payload("tok", _fake_user())
-    assert payload["userName"] == "u1"
+    assert payload["username"] == "u1"
     assert payload["name"] == "User One"

@@ -1175,7 +1175,7 @@ paths:
       tags: [Tokens]
       summary: lists your token balance
       description: |
-        Returns the current token balance for the account.
+        Returns the current token balance for your account.
 
       parameters:
         - $ref: "#/components/parameters/AccessToken"
@@ -1393,7 +1393,7 @@ paths:
       tags: [Tokens]
       summary: Redeems your tokens for money
       description: |
-        Redeems tokens from the given group's account for money.
+        Redeems tokens from your account for money.
 
       parameters:
         - $ref: "#/components/parameters/AccessToken"
@@ -2009,10 +2009,6 @@ components:
         username:
           type: string
           example: cool_guy
-        userName:
-          type: string
-          deprecated: true
-          example: cool_guy
         name:
           type: string
           example: Guy
@@ -2024,6 +2020,11 @@ components:
           type: string
           format: date-time
           example: "2026-04-03T10:30:00Z"
+        lastOnline:
+          type: string
+          format: date-time
+          nullable: true
+          example: "2026-04-14T09:30:00Z"
 
     AuthResponse:
       type: object

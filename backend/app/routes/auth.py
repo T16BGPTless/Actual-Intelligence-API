@@ -1,6 +1,7 @@
 """Authentication endpoints."""
 
 from http import HTTPStatus
+from datetime import UTC, datetime
 
 from flask import Blueprint, jsonify, request
 from postgrest.exceptions import APIError
@@ -14,13 +15,50 @@ from app.supabase_client import anon_client, service_client, user_client
 auth_bp = Blueprint("auth", __name__)
 
 
+def _missing_field_error(scope: str, field: str):
+    return return_error(
+        "BAD_REQUEST",
+        f"Missing or invalid {scope} data: missing field: {field}",
+    )
+
+
+def _auth_success_response(auth_response, status_code: HTTPStatus):
+    user = auth_response.user
+    session = auth_response.session
+    if not user or not session:
+        return return_error("INTERNAL_SERVER_ERROR")
+
+    token = session.access_token
+    _touch_last_online(token, str(user.id))
+    return (
+        jsonify(
+            {
+                "accessToken": token,
+                "user": _user_payload(token, user),
+            }
+        ),
+        status_code,
+    )
+
+
+def _touch_last_online(access_token: str, user_id: str) -> None:
+    try:
+        timestamp = datetime.now(UTC).isoformat()
+        user_client(access_token).table("profiles").update(
+            {"last_online_at": timestamp}
+        ).eq("user_id", user_id).execute()
+    except APIError:
+        # Do not block auth success responses on non-critical profile timestamp updates.
+        return
+
+
 def _user_payload(access_token: str, user) -> dict:
     meta = user.user_metadata or {}
     try:
         client = user_client(access_token)
         prof = (
             client.table("profiles")
-            .select("username,display_name,created_at")
+            .select("username,display_name,created_at,last_online_at")
             .eq("user_id", str(user.id))
             .maybe_single()
             .execute()
@@ -33,17 +71,19 @@ def _user_payload(access_token: str, user) -> dict:
         username = prof.get("username") or meta.get("username") or ""
         name = prof.get("display_name") or meta.get("name") or ""
         created = api_ts(prof.get("created_at") or user.created_at)
+        last_online = api_ts(prof.get("last_online_at"))
     else:
         username = meta.get("username") or ""
         name = meta.get("name") or ""
         created = api_ts(user.created_at)
+        last_online = None
 
     return {
         "email": user.email,
         "name": name,
-        "userName": username,
         "username": username,
         "createdAt": created,
+        "lastOnline": last_online,
     }
 
 
@@ -54,14 +94,11 @@ def register():
     required_fields = ["email", "password", "name", "username"]
     for field in required_fields:
         if field not in body:
-            return return_error(
-                "BAD_REQUEST",
-                f"Missing or invalid registration data: missing field: {field}",
-            )
+            return _missing_field_error("registration", field)
 
     signup_options = {
         "data": {
-            "username": body.get("username") or body.get("userName"),
+            "username": body["username"],
             "name": body["name"],
         }
     }
@@ -83,51 +120,45 @@ def register():
             return return_error("CONFLICT", "An account with this email already exists")
         return return_error("BAD_REQUEST", e.message or "Registration failed")
 
+    signin_fallback_error = return_error(
+        "FORBIDDEN",
+        "Registration succeeded but automatic sign-in failed.",
+    )
     if not auth_response.session:
+        user = auth_response.user
+        if not user:
+            return return_error("INTERNAL_SERVER_ERROR")
+
+        # If email confirmations are enabled upstream, force-confirm and continue login.
+        try:
+            service_client().auth.admin.update_user_by_id(
+                str(user.id),
+                {"email_confirm": True},
+            )
+        except AuthApiError:
+            return return_error("INTERNAL_SERVER_ERROR", "Registration failed")
+
         try:
             auth_response = anon_client().auth.sign_in_with_password(
                 {"email": body["email"], "password": body["password"]}
             )
         except AuthApiError:
-            return return_error(
-                "FORBIDDEN",
-                "Confirm your email address before using the API.",
-            )
+            return signin_fallback_error
 
         if not auth_response.session:
-            return return_error(
-                "FORBIDDEN",
-                "Confirm your email address before using the API.",
-            )
+            return signin_fallback_error
 
-    user = auth_response.user
-    if not user:
-        return return_error("INTERNAL_SERVER_ERROR")
-
-    token = auth_response.session.access_token
-    return (
-        jsonify(
-            {
-                "accessToken": token,
-                "user": _user_payload(token, user),
-            }
-        ),
-        HTTPStatus.CREATED,
-    )
+    return _auth_success_response(auth_response, HTTPStatus.CREATED)
 
 
 @auth_bp.route("/v1/auth/login", methods=["POST"])
 def login():
     body = request.get_json(silent=True) or {}
 
-    if "password" not in body:
-        return return_error(
-            "BAD_REQUEST", "Missing or invalid login data: missing field: password"
-        )
     if "email" not in body:
-        return return_error(
-            "BAD_REQUEST", "Missing or invalid login data: missing field: email"
-        )
+        return _missing_field_error("login", "email")
+    if "password" not in body:
+        return _missing_field_error("login", "password")
 
     try:
         auth_response = anon_client().auth.sign_in_with_password(
@@ -139,16 +170,7 @@ def login():
     if not auth_response.session or not auth_response.user:
         return return_error("UNAUTHORIZED", "Invalid email or password")
 
-    token = auth_response.session.access_token
-    return (
-        jsonify(
-            {
-                "accessToken": token,
-                "user": _user_payload(token, auth_response.user),
-            }
-        ),
-        HTTPStatus.OK,
-    )
+    return _auth_success_response(auth_response, HTTPStatus.OK)
 
 
 @auth_bp.route("/v1/auth/logout", methods=["POST"])
