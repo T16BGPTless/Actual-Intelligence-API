@@ -73,7 +73,9 @@ def get_tokens():
     body = request.get_json(silent=True) or {}
     account_name = _require_account_name(body)
     if not account_name:
-        return return_error("BAD_REQUEST", "Missing or invalid data: accountName is required")
+        return return_error(
+            "BAD_REQUEST", "Missing or invalid data: accountName is required"
+        )
 
     client = service_client()
     try:

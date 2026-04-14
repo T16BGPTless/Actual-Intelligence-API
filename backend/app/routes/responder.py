@@ -160,14 +160,19 @@ def send_message(chatID):
     # supabase-py request builders are dynamically typed; pylint cannot infer chained members.
     # pylint: disable=no-member
     try:
-        row = client.table("messages").insert(
-            {
-                "chat_id": chatID,
-                "sender_id": str(user.id),
-                "sender_type": "responder",
-                "message": body["message"],
-            }
-        ).execute().data
+        row = (
+            client.table("messages")
+            .insert(
+                {
+                    "chat_id": chatID,
+                    "sender_id": str(user.id),
+                    "sender_type": "responder",
+                    "message": body["message"],
+                }
+            )
+            .execute()
+            .data
+        )
     except APIError:
         return return_error("FORBIDDEN", "You do not have access to this content")
     # pylint: enable=no-member

@@ -253,11 +253,20 @@ def test_redeem_tokens_success_for_requester_owner(client, monkeypatch):
 
 def test_tokens_routes_auth_errors(client, monkeypatch):
     monkeypatch.setattr(
-        tokens_routes, "require_access_token", lambda: (None, ({"error": "UNAUTHORIZED"}, 401))
+        tokens_routes,
+        "require_access_token",
+        lambda: (None, ({"error": "UNAUTHORIZED"}, 401)),
     )
     assert client.get("/v1/tokens", json={"accountName": "Main"}).status_code == 401
-    assert client.post("/v1/tokens/buy", json={"accountName": "Main", "tokens": 1}).status_code == 401
     assert (
-        client.post("/v1/tokens/redeem", json={"accountName": "Main", "tokens": 1}).status_code
+        client.post(
+            "/v1/tokens/buy", json={"accountName": "Main", "tokens": 1}
+        ).status_code
+        == 401
+    )
+    assert (
+        client.post(
+            "/v1/tokens/redeem", json={"accountName": "Main", "tokens": 1}
+        ).status_code
         == 401
     )

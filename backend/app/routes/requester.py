@@ -120,14 +120,19 @@ def send_message(chatID):
     # supabase-py request builders are dynamically typed; pylint cannot infer chained members.
     # pylint: disable=no-member
     try:
-        row = client.table("messages").insert(
-            {
-                "chat_id": chatID,
-                "sender_id": str(user.id),
-                "sender_type": "requester",
-                "message": body["message"],
-            }
-        ).execute().data
+        row = (
+            client.table("messages")
+            .insert(
+                {
+                    "chat_id": chatID,
+                    "sender_id": str(user.id),
+                    "sender_type": "requester",
+                    "message": body["message"],
+                }
+            )
+            .execute()
+            .data
+        )
     except APIError:
         return return_error("FORBIDDEN", "You cannot post to this chat.")
     # pylint: enable=no-member
@@ -180,15 +185,20 @@ def add_request(chatID):
     # supabase-py request builders are dynamically typed; pylint cannot infer chained members.
     # pylint: disable=no-member
     try:
-        row = client.table("requests").insert(
-            {
-                "chat_id": chatID,
-                "requester_id": str(user.id),
-                "request_text": body["requestText"],
-                "tokens_to_spend": tokens,
-                "status": "pending",
-            }
-        ).execute().data
+        row = (
+            client.table("requests")
+            .insert(
+                {
+                    "chat_id": chatID,
+                    "requester_id": str(user.id),
+                    "request_text": body["requestText"],
+                    "tokens_to_spend": tokens,
+                    "status": "pending",
+                }
+            )
+            .execute()
+            .data
+        )
     except APIError:
         return return_error(
             "PAYMENT_REQUIRED",
