@@ -1232,7 +1232,7 @@ paths:
           description: |
             **Forbidden**
             
-            You do not have access to make these changes. These paths are developer only
+            You can only view your own account balance.
           content:
             application/json:
               schema:
@@ -1242,7 +1242,7 @@ paths:
                   summary: FORBIDDEN
                   value:
                     error: FORBIDDEN
-                    message: You do not have access to this content
+                    message: You can only view your own account balance.
 
         "404":
           description: |
@@ -1344,7 +1344,7 @@ paths:
           description: |
             **Forbidden**
             
-            You do not have access to make these changes. These paths are developer only
+            You can only add tokens to your own account.
           content:
             application/json:
               schema:
@@ -1354,7 +1354,7 @@ paths:
                   summary: FORBIDDEN
                   value:
                     error: FORBIDDEN
-                    message: You do not have access to this content
+                    message: You can only add tokens to your own account.
 
         "404":
           description: |
@@ -1456,7 +1456,7 @@ paths:
           description: |
             **Forbidden**
             
-            You do not have access to make these changes. These paths are developer only
+            You can only redeem tokens from your own account.
           content:
             application/json:
               schema:
@@ -1466,7 +1466,7 @@ paths:
                   summary: FORBIDDEN
                   value:
                     error: FORBIDDEN
-                    message: You do not have access to this content
+                    message: You can only redeem tokens from your own account.
 
         "404":
           description: |

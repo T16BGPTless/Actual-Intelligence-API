@@ -35,23 +35,6 @@ def _require_positive_tokens(body: dict) -> int | None:
     return value if value > 0 else None
 
 
-def _developer_or_admin(access_token: str, user_id: str) -> bool:
-    _ = access_token  # Auth is already validated by require_supabase_user.
-    try:
-        rows = _execute_data(
-            service_client()
-            .table("user_roles")
-            .select("role")
-            .eq("user_id", user_id)
-            .in_("role", ["developer", "admin"])
-        )
-    except APIError:
-        return False
-    if not rows:
-        return False
-    return len(rows) > 0
-
-
 def _account_for_name(client, account_name: str):
     return _execute_data(
         client.table("accounts")
@@ -128,9 +111,7 @@ def buy_tokens():
 
     if not account:
         return return_error("NOT_FOUND", "accountName cannot be found")
-    is_privileged = _developer_or_admin(access_token, str(user.id))
-    is_owner = str(account.get("created_by")) == str(user.id)
-    if not (is_privileged or is_owner):
+    if str(account.get("created_by")) != str(user.id):
         return return_error("FORBIDDEN")
 
     account_id = account["account_id"]
@@ -199,9 +180,7 @@ def redeem_tokens():
 
     if not account:
         return return_error("NOT_FOUND", "accountName cannot be found")
-    is_privileged = _developer_or_admin(access_token, str(user.id))
-    is_owner = str(account.get("created_by")) == str(user.id)
-    if not (is_privileged or is_owner):
+    if str(account.get("created_by")) != str(user.id):
         return return_error("FORBIDDEN")
 
     account_id = account["account_id"]
