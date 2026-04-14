@@ -47,7 +47,7 @@ def _touch_last_online(access_token: str, user_id: str) -> None:
         user_client(access_token).table("profiles").update(
             {"last_online_at": timestamp}
         ).eq("user_id", user_id).execute()
-    except APIError:
+    except Exception:  # pragma: no cover - non-critical best-effort update
         # Do not block auth success responses on non-critical profile timestamp updates.
         return
 

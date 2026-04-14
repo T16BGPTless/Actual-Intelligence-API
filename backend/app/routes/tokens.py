@@ -200,14 +200,9 @@ def redeem_tokens():
 
     updated_balance = current_balance - tokens
     try:
-        if current:
-            client.table("token_balances").update({"balance": updated_balance}).eq(
-                "account_id", account_id
-            ).execute()
-        else:
-            client.table("token_balances").insert(
-                {"account_id": account_id, "balance": updated_balance}
-            ).execute()
+        client.table("token_balances").update({"balance": updated_balance}).eq(
+            "account_id", account_id
+        ).execute()
 
         client.table("token_transactions").insert(
             {
