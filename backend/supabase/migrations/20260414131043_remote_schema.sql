@@ -1451,3 +1451,6 @@ GRANT ALL ON TABLE "public"."profiles" TO "anon";
 GRANT ALL ON TABLE "public"."profiles" TO "authenticated";
 GRANT ALL ON TABLE "public"."profiles" TO "service_role";
 
+
+-- Grand select on user_roles so has_role() policy checks work for authenticated users
+GRANT ALL ON TABLE public.user_roles TO anon, authenticated, service_role;
