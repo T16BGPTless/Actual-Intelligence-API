@@ -19,7 +19,7 @@ def browse_chats():
         
     client = user_client(access_token)
     try:
-        q = client.table("chats").select("*").eq("status", "open")
+        q = client.table("chats").select("*").eq("status", "open").neq("requester_id", str(user.id))
         data = q.order("created_at", desc=False).execute().data or []
     except APIError:
         return return_error("INTERNAL_SERVER_ERROR")
@@ -35,7 +35,7 @@ def claimed_chats():
         
     client = user_client(access_token)
     try:
-        q = client.table("chats").select("*").eq("responder_id", str(user.id))
+        q = client.table("chats").select("*").eq("responder_id", str(user.id)).neq("requester_id", str(user.id))
         data = q.order("created_at", desc=False).execute().data or []
     except APIError:
         return return_error("INTERNAL_SERVER_ERROR")
@@ -64,7 +64,7 @@ def claim_chat(chat_id):
         
     try:
         client.table("chats").update({
-            "status": "active",
+            "status": "claimed",
             "claim_state": "claimed",
             "responder_id": str(user.id),
             "title": title
@@ -93,10 +93,13 @@ def post_message(chat_id):
         
     if str(chat["responder_id"]) != str(user.id):
         return return_error("FORBIDDEN", "Forbidden")
+    if chat["status"] != "claimed":
+        return return_error("BAD_REQUEST", "Chat is not in claimed state")
         
     try:
         client.table("messages").insert({
             "chat_id": chat_id,
+            "sender_id": str(user.id),
             "sender_type": "responder",
             "message": msg_text
         }).execute()
@@ -122,3 +125,30 @@ def get_chat_detail(chat_id):
         return return_error("FORBIDDEN", "Forbidden")
         
     return jsonify(build_chat_detail(client, chat)), HTTPStatus.OK
+
+@responder_bp.route("/v1/responder/chats/<chat_id>/close", methods=["POST"])
+def close_chat(chat_id):
+    access_token, error = require_access_token()
+    if error: return error
+    user, error = require_supabase_user(access_token)
+    if error: return error
+        
+    client = user_client(access_token)
+    chat = get_chat_or_none(client, chat_id)
+    if not chat:
+        return return_error("NOT_FOUND", "Not Found")
+        
+    if str(chat["responder_id"]) != str(user.id):
+        return return_error("FORBIDDEN", "Forbidden")
+        
+    if chat["status"] != "claimed":
+        return return_error("BAD_REQUEST", "Chat is not claimed")
+        
+    try:
+        client.table("chats").update({
+            "status": "closing"
+        }).eq("chat_id", chat_id).execute()
+    except APIError:
+        return return_error("INTERNAL_SERVER_ERROR")
+    
+    return jsonify({"message": "Chat successfully closed."}), HTTPStatus.OK

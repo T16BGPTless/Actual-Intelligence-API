@@ -234,7 +234,7 @@ begin
   on conflict (user_id) do nothing;
 
   insert into public.user_roles (user_id, role)
-  values (new.id, 'requester')
+  values (new.id, 'requester'), (new.id, 'responder')
   on conflict do nothing;
 
   insert into public.accounts (account_name, created_by)
@@ -601,7 +601,7 @@ ALTER TABLE ONLY "public"."user_roles"
 ALTER TABLE "public"."accounts" ENABLE ROW LEVEL SECURITY;
 
 
-CREATE POLICY "accounts_select_owner" ON "public"."accounts" FOR SELECT TO "authenticated" USING ("public"."is_account_owner"("account_id"));
+CREATE POLICY "accounts_select_owner" ON "public"."accounts" FOR SELECT TO "authenticated" USING ((created_by = auth.uid()));
 
 
 
@@ -1375,7 +1375,7 @@ ALTER TABLE public.messages
 DROP FUNCTION IF EXISTS public.create_chat_with_initial_request(text, text, text, bigint);
 CREATE OR REPLACE FUNCTION public.create_chat_with_initial_request(p_category text, p_request_text text, p_tokens_to_spend bigint)
 RETURNS jsonb
-LANGUAGE plpgsql
+LANGUAGE plpgsql SECURITY DEFINER
 SET search_path TO public
 AS $$
 declare
@@ -1454,3 +1454,67 @@ GRANT ALL ON TABLE "public"."profiles" TO "service_role";
 
 -- Grand select on user_roles so has_role() policy checks work for authenticated users
 GRANT ALL ON TABLE public.user_roles TO anon, authenticated, service_role;
+
+ALTER TYPE public.chat_status ADD VALUE IF NOT EXISTS 'claimed';
+ALTER TYPE public.chat_status ADD VALUE IF NOT EXISTS 'closing';
+
+CREATE OR REPLACE FUNCTION public.create_chat_with_initial_request(p_category text, p_request_text text, p_tokens_to_spend bigint)
+RETURNS jsonb
+LANGUAGE plpgsql SECURITY DEFINER
+SET search_path TO public
+AS $$
+declare
+  v_chat_id text;
+  v_account_id uuid;
+  v_balance bigint;
+  v_uid uuid := auth.uid();
+begin
+  if v_uid is null then
+    raise exception 'not authenticated';
+  end if;
+
+  if p_request_text is null or length(trim(p_request_text)) = 0 then
+    raise exception 'invalid_request_text';
+  end if;
+
+  if p_tokens_to_spend is null or p_tokens_to_spend <= 0 then
+    raise exception 'invalid_tokens';
+  end if;
+
+  -- Check tokens
+  SELECT account_id INTO v_account_id FROM public.accounts WHERE created_by = v_uid LIMIT 1;
+  IF v_account_id IS NULL THEN
+    raise exception 'account_not_found';
+  END IF;
+
+  SELECT balance INTO v_balance FROM public.token_balances WHERE account_id = v_account_id;
+  IF v_balance IS NULL OR v_balance < p_tokens_to_spend THEN
+    raise exception 'insufficient_tokens';
+  END IF;
+
+  -- Deduct tokens
+  UPDATE public.token_balances SET balance = balance - p_tokens_to_spend WHERE account_id = v_account_id;
+
+  insert into public.chats (requester_id, category, original_request, tokens_spent, status, claim_state, title)
+  values (
+    v_uid,
+    coalesce(nullif(trim(p_category), ''), 'general'),
+    trim(p_request_text),
+    p_tokens_to_spend,
+    'open',
+    'unclaimed',
+    null
+  )
+  returning chat_id into v_chat_id;
+
+  -- Record transaction using chat_id
+  INSERT INTO public.token_transactions (account_id, txn_type, amount, chat_id, created_by)
+  VALUES (v_account_id, 'spend', -p_tokens_to_spend, v_chat_id, v_uid);
+
+  return jsonb_build_object(
+    'ok', true,
+    'chat_id', v_chat_id
+  );
+end;
+$$;
+CREATE POLICY "chats_close_responder" ON "public"."chats" FOR UPDATE TO "authenticated" USING (("responder_id" = "auth"."uid"()) AND ("status" = 'claimed'::"public"."chat_status")) WITH CHECK (("status" = 'closing'::"public"."chat_status"));

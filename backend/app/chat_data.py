@@ -74,7 +74,11 @@ def build_chat_detail(client, chat: dict) -> dict:
     }
 
 def get_chat_or_none(client, chat_id: str) -> dict | None:
-    return client.table("chats").select("*").eq("chat_id", chat_id).maybe_single().execute().data
+    res = client.table("chats").select("*").eq("chat_id", chat_id).maybe_single().execute()
+    if not res: return None
+    if isinstance(res, dict): return res
+    if hasattr(res, "data"): return res.data
+    return None
 
 def create_chat_with_initial_request(client, body: dict) -> tuple[dict | None, str | None]:
     tokens_raw = body.get("tokensToSpend")
@@ -96,7 +100,9 @@ def create_chat_with_initial_request(client, body: dict) -> tuple[dict | None, s
                 "p_tokens_to_spend": tokens,
             },
         ).execute()
-    except APIError:
+    except APIError as e:
+        import traceback; traceback.print_exc()
+        print(e)
         return None, "rpc_failed"
 
     payload = res.data

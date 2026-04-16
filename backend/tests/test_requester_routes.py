@@ -43,7 +43,7 @@ def test_get_chat_detail_forbidden(client, monkeypatch):
 
 def test_post_message_success(client, monkeypatch):
     _patch_auth(monkeypatch)
-    monkeypatch.setattr(req_routes, "get_chat_or_none", lambda *a: {"requester_id": "user-1", "status": "active"})
+    monkeypatch.setattr(req_routes, "get_chat_or_none", lambda *a: {"requester_id": "user-1", "status": "claimed"})
     class FakeTable:
         def update(self, *a): return self
         def eq(self, *a): return self
@@ -53,13 +53,13 @@ def test_post_message_success(client, monkeypatch):
     resp = client.post("/v1/requester/chats/1/messages", json={"message": "hello", "tokens": 1})
     assert resp.status_code == 201
 
-def test_resolve_chat_success(client, monkeypatch):
+def test_review_chat_success(client, monkeypatch):
     _patch_auth(monkeypatch)
-    monkeypatch.setattr(req_routes, "get_chat_or_none", lambda *a: {"requester_id": "user-1", "status": "active"})
+    monkeypatch.setattr(req_routes, "get_chat_or_none", lambda *a: {"requester_id": "user-1", "status": "closing"})
     class FakeTable:
         def update(self, *a): return self
         def eq(self, *a): return self
         def execute(self): pass
     monkeypatch.setattr(req_routes, "user_client", lambda *a: SimpleNamespace(table=lambda *a: FakeTable()))
-    resp = client.post("/v1/requester/chats/1/resolve", json={"rating": 5})
+    resp = client.post("/v1/requester/chats/1/review", json={"rating": 5})
     assert resp.status_code == 200
