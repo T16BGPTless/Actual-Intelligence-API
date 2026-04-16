@@ -22,6 +22,56 @@ def test_config_env_access(monkeypatch):
     assert config.supabase_anon_key() == "anon"
 
 
+def test_config_service_role_key(monkeypatch):
+    monkeypatch.setenv("SUPABASE_SERVICE_ROLE_KEY", "service")
+    assert config.supabase_service_role_key() == "service"
+
+
+def test_local_supabase_env_handles_subprocess_failure(monkeypatch):
+    config._local_supabase_env.cache_clear()
+
+    def raise_called(*_a, **_k):
+        raise OSError("boom")
+
+    monkeypatch.setattr(config.subprocess, "run", raise_called)
+    assert config._local_supabase_env() == {}
+
+
+def test_local_supabase_env_parses_output(monkeypatch):
+    config._local_supabase_env.cache_clear()
+
+    monkeypatch.setattr(
+        config.subprocess,
+        "run",
+        lambda *_a, **_k: SimpleNamespace(
+            stdout="API_URL=http://x\nNOPE\nANON_KEY=abc\n"
+        ),
+    )
+    parsed = config._local_supabase_env()
+    assert parsed["API_URL"] == "http://x"
+    assert parsed["ANON_KEY"] == "abc"
+
+
+def test_required_env_raises_when_missing(monkeypatch):
+    config._local_supabase_env.cache_clear()
+    monkeypatch.delenv("SUPABASE_URL", raising=False)
+    monkeypatch.setattr(config, "_local_supabase_env", lambda: {})
+    try:
+        config.supabase_url()
+        assert False, "Expected RuntimeError"
+    except RuntimeError:
+        pass
+
+
+def test_required_env_uses_fallback_and_sets_env(monkeypatch):
+    config._local_supabase_env.cache_clear()
+    monkeypatch.delenv("SUPABASE_SERVICE_ROLE_KEY", raising=False)
+    monkeypatch.setattr(
+        config, "_local_supabase_env", lambda: {"SERVICE_ROLE_KEY": "srv"}
+    )
+    assert config.supabase_service_role_key() == "srv"
+
+
 def test_require_access_token_missing_header():
     with flask_app.test_request_context("/"):
         token, error = helpers.require_access_token()
