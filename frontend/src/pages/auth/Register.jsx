@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 
@@ -10,8 +10,14 @@ import {
   Box,
   Container,
   Typography,
-  Divider
+  Divider,
+  InputAdornment,
+  IconButton
 } from '@mui/material';
+
+// Icons
+import Visibility from '@mui/icons-material/Visibility';
+import VisibilityOff from '@mui/icons-material/VisibilityOff';
 
 const BACKEND_URL = "http://localhost:5000";
 
@@ -26,11 +32,14 @@ function Register() {
     confirmPassword: ''
   });
 
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [error, setError] = useState('');
   const [mounted, setMounted] = useState(false);
 
-  useState(() => {
-    setTimeout(() => setMounted(true), 50);
+  useEffect(() => {
+    const timer = setTimeout(() => setMounted(true), 50);
+    return () => clearTimeout(timer);
   }, []);
 
   const handleChange = (prop) => (e) => {
@@ -72,24 +81,30 @@ function Register() {
   const inputStyles = {
     mb: 2,
     '& .MuiOutlinedInput-root': {
-      borderRadius: '8px',
-      backgroundColor: '#fafafa',
+      borderRadius: '0px',
+      backgroundColor: '#ffffff',
+      '& fieldset': { borderWidth: '2px', borderColor: '#eee' },
+      '&:hover fieldset': { borderColor: '#bbb' },
+      '&.Mui-focused fieldset': { borderColor: 'black', borderWidth: '2px' },
     }
   };
 
-  const formButtonStyle = (isPrimary) => ({
+  const actionButtonStyle = (isPrimary) => ({
     py: 1.5,
-    borderRadius: '8px',
-    textTransform: 'none',
-    fontSize: '1rem',
-    fontWeight: 600,
-    transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
-    bgcolor: isPrimary ? 'black' : 'rgba(255, 255, 255, 0.1)',
-    color: isPrimary ? 'white' : '#666',
-    border: isPrimary ? 'none' : '1px solid #ddd',
+    borderRadius: '0px',
+    textTransform: 'uppercase',
+    fontSize: '0.9rem',
+    fontWeight: 900,
+    letterSpacing: '1px',
+    bgcolor: isPrimary ? 'black' : 'transparent',
+    color: isPrimary ? 'white' : 'black',
+    border: '2px solid black',
+    transition: 'all 0.2s ease',
     '&:hover': {
-      bgcolor: isPrimary ? '#222' : 'rgba(0, 0, 0, 0.05)',
-      transform: 'translateY(-1px)',
+      bgcolor: isPrimary ? '#333' : 'black',
+      color: 'white',
+      transform: 'translateY(-2px)',
+      boxShadow: '4px 4px 0px rgba(0,0,0,0.1)',
     }
   });
 
@@ -102,52 +117,99 @@ function Register() {
 
   return (
     <Container maxWidth="xs">
-      <Box
-        sx={{
-          mt: 8,
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          pb: 4
-        }}
-      >
-        <Typography variant="h4" sx={{ fontWeight: 900, mb: 1, ...fadeSlide(0) }}>
-          Actual Intelligence
+      <Box sx={{ mt: 8, display: 'flex', flexDirection: 'column', alignItems: 'center', pb: 4 }}>
+        
+        <Typography 
+          variant="h4" 
+          sx={{ 
+            fontWeight: 900, 
+            mb: 1, 
+            textTransform: 'uppercase', 
+            letterSpacing: '-1px', 
+            ...fadeSlide(0) 
+          }}
+        >
+          Register
         </Typography>
 
-        <Typography
-          variant="subtitle1"
-          sx={{ fontWeight: 600, mb: 4, color: '#666', ...fadeSlide(50) }}
-        >
+        <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 4, color: '#666', ...fadeSlide(50) }}>
           Create a New Account
         </Typography>
 
         {error && (
-          <Alert severity="error" sx={{ width: '100%', mb: 3, borderRadius: '8px', ...fadeSlide(100) }}>
+          <Alert severity="error" variant="filled" sx={{ width: '100%', mb: 3, borderRadius: '0px', bgcolor: 'black', ...fadeSlide(100) }}>
             {error}
           </Alert>
         )}
 
         <Box component="form" onSubmit={registerUser} sx={{ width: '100%' }}>
           
-          <TextField placeholder="Name" fullWidth value={formData.name} onChange={handleChange('name')} sx={{ ...inputStyles, ...fadeSlide(150) }} />
-          <TextField placeholder="Username" fullWidth value={formData.username} onChange={handleChange('username')} sx={{ ...inputStyles, ...fadeSlide(200) }} />
-          <TextField placeholder="Email" fullWidth value={formData.email} onChange={handleChange('email')} sx={{ ...inputStyles, ...fadeSlide(250) }} />
-          <TextField placeholder="Password" type="password" fullWidth value={formData.password} onChange={handleChange('password')} sx={{ ...inputStyles, ...fadeSlide(300) }} />
-          <TextField placeholder="Repeat Password" type="password" fullWidth value={formData.confirmPassword} onChange={handleChange('confirmPassword')} sx={{ ...inputStyles, mb: 3, ...fadeSlide(350) }} />
+          <TextField placeholder="FULL NAME" fullWidth value={formData.name} onChange={handleChange('name')} sx={{ ...inputStyles, ...fadeSlide(150) }} />
+          <TextField placeholder="USERNAME" fullWidth value={formData.username} onChange={handleChange('username')} sx={{ ...inputStyles, ...fadeSlide(200) }} />
+          <TextField placeholder="EMAIL ADDRESS" fullWidth value={formData.email} onChange={handleChange('email')} sx={{ ...inputStyles, ...fadeSlide(250) }} />
+          
+          <TextField 
+            placeholder="PASSWORD" 
+            type={showPassword ? 'text' : 'password'} 
+            fullWidth 
+            value={formData.password} 
+            onChange={handleChange('password')} 
+            sx={{ ...inputStyles, ...fadeSlide(300) }}
+            slotProps={{
+              input: {
+                endAdornment: (
+                  <InputAdornment position="end">
+                    <IconButton
+                      onClick={() => setShowPassword(!showPassword)}
+                      onMouseDown={(e) => e.preventDefault()}
+                      edge="end"
+                      sx={{ color: 'black' }}
+                    >
+                      {showPassword ? <VisibilityOff /> : <Visibility />}
+                    </IconButton>
+                  </InputAdornment>
+                ),
+              },
+            }}
+          />
 
-          <Button variant="contained" fullWidth disableElevation sx={{ ...formButtonStyle(true), ...fadeSlide(400) }} type="submit">
+          <TextField 
+            placeholder="CONFIRM PASSWORD" 
+            type={showConfirmPassword ? 'text' : 'password'} 
+            fullWidth 
+            value={formData.confirmPassword} 
+            onChange={handleChange('confirmPassword')} 
+            sx={{ ...inputStyles, mb: 3, ...fadeSlide(350) }}
+            slotProps={{
+              input: {
+                endAdornment: (
+                  <InputAdornment position="end">
+                    <IconButton
+                      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                      onMouseDown={(e) => e.preventDefault()}
+                      edge="end"
+                      sx={{ color: 'black' }}
+                    >
+                      {showConfirmPassword ? <VisibilityOff /> : <Visibility />}
+                    </IconButton>
+                  </InputAdornment>
+                ),
+              },
+            }}
+          />
+
+          <Button variant="contained" fullWidth type="submit" disableElevation sx={{ ...actionButtonStyle(true), ...fadeSlide(400) }}>
             Sign Up
           </Button>
 
-          <Divider sx={{ my: 3, ...fadeSlide(450) }}>or</Divider>
+          <Divider sx={{ my: 4, fontWeight: 800, textTransform: 'uppercase', ...fadeSlide(450) }}>or</Divider>
 
-          <Button variant="contained" fullWidth disableElevation sx={{ ...formButtonStyle(false), ...fadeSlide(500) }} onClick={() => navigate("/login")}>
-            Sign In
+          <Button variant="outlined" fullWidth onClick={() => navigate("/login")} disableElevation sx={{ ...actionButtonStyle(false), ...fadeSlide(500) }}>
+            Log In
           </Button>
 
-          <Typography variant="body2" align="center" sx={{ mt: 4, color: 'text.secondary', ...fadeSlide(550) }}>
-            By clicking Sign Up, you agree to our Terms and Privacy Policy
+          <Typography variant="body2" align="center" sx={{ mt: 4, color: '#888', fontWeight: 500, ...fadeSlide(550) }}>
+            By clicking Sign Up, you agree to our <span style={{ color: 'black', fontWeight: 800, cursor: 'pointer' }}>Terms and Privacy Policy</span>
           </Typography>
 
         </Box>

@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
 
-// MUI
+// MUI Components
 import {
   TextField,
   Button,
@@ -10,8 +10,14 @@ import {
   Box,
   Container,
   Typography,
-  Divider
+  Divider,
+  InputAdornment,
+  IconButton
 } from "@mui/material";
+
+// Icons
+import Visibility from '@mui/icons-material/Visibility';
+import VisibilityOff from '@mui/icons-material/VisibilityOff';
 
 const BACKEND_URL = "http://localhost:5000";
 
@@ -20,6 +26,7 @@ function Login() {
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [mounted, setMounted] = useState(false);
 
@@ -31,43 +38,47 @@ function Login() {
   const handleLogin = async (e) => {
     e.preventDefault();
     setError("");
-
     try {
-      const res = await axios.post(`${BACKEND_URL}/v1/auth/login`, {
-        email,
-        password,
-      });
-
+      const res = await axios.post(`${BACKEND_URL}/v1/auth/login`, { email, password });
       localStorage.setItem("token", res.data.accessToken);
       localStorage.setItem("email", email);
-
       navigate("/");
     } catch (err) {
       setError(err.response?.data?.message || "Login failed");
     }
   };
 
+  const handleClickShowPassword = () => setShowPassword((show) => !show);
+  const handleMouseDownPassword = (event) => event.preventDefault();
+  const handleMouseUpPassword = (event) => event.preventDefault();
+
   const inputStyles = {
     mb: 2,
     '& .MuiOutlinedInput-root': {
-      borderRadius: '8px',
-      backgroundColor: '#fafafa',
+      borderRadius: '0px',
+      backgroundColor: '#ffffff',
+      '& fieldset': { borderWidth: '2px', borderColor: '#eee' },
+      '&:hover fieldset': { borderColor: '#bbb' },
+      '&.Mui-focused fieldset': { borderColor: 'black', borderWidth: '2px' },
     }
   };
 
-  const formButtonStyle = (isPrimary) => ({
+  const actionButtonStyle = (isPrimary) => ({
     py: 1.5,
-    borderRadius: '8px',
-    textTransform: 'none',
-    fontSize: '1rem',
-    fontWeight: 600,
-    transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
-    bgcolor: isPrimary ? 'black' : 'rgba(255, 255, 255, 0.1)',
-    color: isPrimary ? 'white' : '#666',
-    border: isPrimary ? 'none' : '1px solid #ddd',
+    borderRadius: '0px',
+    textTransform: 'uppercase',
+    fontSize: '0.9rem',
+    fontWeight: 900,
+    letterSpacing: '1px',
+    bgcolor: isPrimary ? 'black' : 'transparent',
+    color: isPrimary ? 'white' : 'black',
+    border: '2px solid black',
+    transition: 'all 0.2s ease',
     '&:hover': {
-      bgcolor: isPrimary ? '#222' : 'rgba(0, 0, 0, 0.05)',
-      transform: 'translateY(-1px)',
+      bgcolor: isPrimary ? '#333' : 'black',
+      color: 'white',
+      transform: 'translateY(-2px)',
+      boxShadow: '4px 4px 0px rgba(0,0,0,0.1)',
     }
   });
 
@@ -80,39 +91,27 @@ function Login() {
 
   return (
     <Container maxWidth="xs">
-      <Box
-        sx={{
-          mt: 8,
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          pb: 4
-        }}
-      >
-        <Typography variant="h4" sx={{ fontWeight: 900, mb: 1, ...fadeSlide(0) }}>
-          Actual Intelligence
+      <Box sx={{ mt: 12, display: 'flex', flexDirection: 'column', alignItems: 'center', pb: 4 }}>
+        
+        <Typography variant="h4" sx={{ fontWeight: 900, mb: 1, textTransform: 'uppercase', letterSpacing: '-1px', ...fadeSlide(0) }}>
+          Login
         </Typography>
 
-        <Typography
-          variant="subtitle1"
-          sx={{ fontWeight: 600, mb: 4, color: '#666', ...fadeSlide(50) }}
-        >
-          Log In to Your Account
+        <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 4, color: '#666', ...fadeSlide(50) }}>
+          Sign in to your account
         </Typography>
 
         {error && (
-          <Alert
-            severity="error"
-            sx={{ width: '100%', mb: 3, borderRadius: '8px', ...fadeSlide(100) }}
-          >
+          <Alert severity="error" variant="filled" sx={{ width: '100%', mb: 3, borderRadius: '0px', bgcolor: 'black', ...fadeSlide(100) }}>
             {error}
           </Alert>
         )}
 
+        {/* Keeping text fields without wrapping them in a dedicated FormControl */}
         <Box component="form" onSubmit={handleLogin} sx={{ width: '100%' }}>
           
           <TextField
-            placeholder="Email"
+            placeholder="EMAIL ADDRESS"
             fullWidth
             value={email}
             onChange={(e) => setEmail(e.target.value)}
@@ -120,51 +119,41 @@ function Login() {
           />
 
           <TextField
-            placeholder="Password"
-            type="password"
+            placeholder="PASSWORD"
+            type={showPassword ? 'text' : 'password'}
             fullWidth
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             sx={{ ...inputStyles, mb: 3, ...fadeSlide(200) }}
+            slotProps={{
+              input: {
+                endAdornment: (
+                  <InputAdornment position="end">
+                    <IconButton
+                      aria-label={showPassword ? 'hide the password' : 'display the password'}
+                      onClick={handleClickShowPassword}
+                      onMouseDown={handleMouseDownPassword}
+                      onMouseUp={handleMouseUpPassword}
+                      edge="end"
+                      sx={{ color: 'black' }}
+                    >
+                      {showPassword ? <VisibilityOff /> : <Visibility />}
+                    </IconButton>
+                  </InputAdornment>
+                ),
+              },
+            }}
           />
 
-          <Button
-            variant="contained"
-            fullWidth
-            type="submit"
-            disableElevation
-            sx={{ ...formButtonStyle(true), ...fadeSlide(250) }}
-          >
+          <Button variant="contained" fullWidth type="submit" disableElevation sx={{ ...actionButtonStyle(true), ...fadeSlide(250) }}>
             Sign In
           </Button>
 
-          <Divider sx={{ my: 3, ...fadeSlide(300) }}>
-            or
-          </Divider>
+          <Divider sx={{ my: 4, fontWeight: 800, textTransform: 'uppercase', ...fadeSlide(300) }}>or</Divider>
 
-          <Button
-            variant="contained"
-            fullWidth
-            onClick={() => navigate("/register")}
-            disableElevation
-            sx={{ ...formButtonStyle(false), ...fadeSlide(350) }}
-          >
-            Create an Account
+          <Button variant="outlined" fullWidth onClick={() => navigate("/register")} disableElevation sx={{ ...actionButtonStyle(false), ...fadeSlide(350) }}>
+            Create Account
           </Button>
-
-          <Typography
-            variant="body2"
-            align="center"
-            sx={{ mt: 4, color: 'text.secondary', ...fadeSlide(400) }}
-          >
-            Forgot your password?{' '}
-            <Box
-              component="span"
-              sx={{ color: 'black', fontWeight: 600, cursor: 'pointer' }}
-            >
-              Reset it here
-            </Box>
-          </Typography>
 
         </Box>
       </Box>

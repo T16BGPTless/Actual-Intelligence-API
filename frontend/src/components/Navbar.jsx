@@ -24,6 +24,22 @@ function Navbar() {
     navigate("/login");
   };
 
+  const underlineEffect = {
+    '&::after': {
+      content: '""',
+      position: 'absolute',
+      bottom: 0,
+      left: 0,
+      width: '0%',
+      height: '2px',
+      bgcolor: '#fff',
+      transition: 'width 0.3s ease-in-out',
+    },
+    '&:hover::after': {
+      width: '100%',
+    }
+  };
+
   const navButtonStyle = {
     textTransform: 'none',
     borderRadius: 0,
@@ -33,7 +49,8 @@ function Navbar() {
     color: '#eee',
     display: 'flex',
     gap: 1.5,
-    transition: 'all 0.3s ease',
+    height: '100%',
+    transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
     position: 'relative',
     '& .MuiButton-startIcon': {
       transition: 'transform 0.3s ease',
@@ -45,15 +62,30 @@ function Navbar() {
       '& .MuiButton-startIcon': {
         transform: 'scale(1.2)',
       },
-      '&::after': {
-        content: '""',
-        position: 'absolute',
-        bottom: 0,
-        left: 0,
-        width: '100%',
-        height: '2px',
-        bgcolor: '#fff',
-      }
+    },
+    ...underlineEffect
+  };
+
+  const brandStyle = {
+    cursor: "pointer", 
+    fontWeight: 900, 
+    letterSpacing: '-1px',
+    color: '#fff',
+    textTransform: 'uppercase',
+    position: 'relative',
+    transition: 'all 0.3s ease',
+    display: 'inline-block',
+    px: 1,
+    py: 0.5,
+    '&:hover': {
+      transform: 'scale(1.05)',
+      color: '#fff',
+    },
+    ...underlineEffect,
+    '&::after': {
+        ...underlineEffect['&::after'],
+        height: '3px',
+        bottom: -2
     }
   };
 
@@ -63,30 +95,24 @@ function Navbar() {
       elevation={0}
       sx={{
         bgcolor: '#000',
-        borderBottom: '1px solid #333'
+        borderBottom: '1px solid #333',
+        zIndex: (theme) => theme.zIndex.drawer + 1
       }}
     >
       <Container maxWidth="lg">
-        <Toolbar disableGutters sx={{ justifyContent: 'space-between' }}>
+        <Toolbar disableGutters sx={{ justifyContent: 'space-between', height: '64px' }}>
           
-          <Typography
-            variant="h6"
-            sx={{ 
-              cursor: "pointer", 
-              fontWeight: 900, 
-              letterSpacing: '-0.5px',
-              color: '#fff' 
-            }}
-            onClick={() => navigate("/")}
-          >
-            Actual Intelligence
-          </Typography>
+          <Box onClick={() => navigate("/")} sx={{ display: 'flex', alignItems: 'center' }}>
+            <Typography variant="h6" sx={brandStyle}>
+              Actual Intelligence
+            </Typography>
+          </Box>
 
           <Box sx={{ 
             display: 'flex', 
             alignItems: 'stretch',
             bgcolor: '#000', 
-            height: '64px' 
+            height: '100%' 
           }}>
             {!token ? (
               <>
@@ -98,7 +124,7 @@ function Navbar() {
                   Log In
                 </Button>
 
-                <Divider orientation="vertical" flexItem sx={{ bgcolor: '#333', width: '1px' }} />
+                <Divider orientation="vertical" flexItem sx={{ bgcolor: '#333', width: '1px', my: 2 }} />
 
                 <Button
                   startIcon={<PersonAddIcon />}
@@ -113,16 +139,21 @@ function Navbar() {
                 <Button
                   startIcon={<TokenIcon />}
                   sx={navButtonStyle}
-                  onClick={() => console.log("Token action")}
+                  onClick={() => navigate("/tokens")}
                 >
                   Token
                 </Button>
 
-                <Divider orientation="vertical" flexItem sx={{ bgcolor: '#333', width: '1px' }} />
+                <Divider orientation="vertical" flexItem sx={{ bgcolor: '#333', width: '1px', my: 2 }} />
 
                 <Button
                   startIcon={<LogoutIcon />}
-                  sx={{ ...navButtonStyle, color: '#ff5252', '&:hover': { color: '#ff1744', bgcolor: '#1a0000' } }}
+                  sx={{ 
+                    ...navButtonStyle, 
+                    color: '#ff5252', 
+                    '&::after': { ...underlineEffect['&::after'], bgcolor: '#ff5252' },
+                    '&:hover': { color: '#ff1744', bgcolor: '#1a0000' } 
+                  }}
                   onClick={logout}
                 >
                   Logout
