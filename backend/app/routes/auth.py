@@ -86,6 +86,7 @@ def _user_payload(access_token: str, user) -> dict:
         "lastOnline": last_online,
     }
 
+@auth_bp.route("/v1/auth/register", methods=["POST"])
 
 def register():
     body = request.get_json(silent=True) or {}
