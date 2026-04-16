@@ -170,14 +170,16 @@ def send_message(chatID):
                     "message": body["message"],
                 }
             )
-            .select("message_id,sender_type,message,created_at")
-            .single()
             .execute()
             .data
         )
     except APIError:
         return return_error("FORBIDDEN", "You do not have access to this content")
     # pylint: enable=no-member
+    if isinstance(row, list):
+        row = row[0] if row else None
+    if not row:
+        return return_error("INTERNAL_SERVER_ERROR")
 
     return jsonify(message_dict(row)), HTTPStatus.CREATED
 

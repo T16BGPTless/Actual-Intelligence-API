@@ -130,14 +130,16 @@ def send_message(chatID):
                     "message": body["message"],
                 }
             )
-            .select("message_id,sender_type,message,created_at")
-            .single()
             .execute()
             .data
         )
     except APIError:
         return return_error("FORBIDDEN", "You cannot post to this chat.")
     # pylint: enable=no-member
+    if isinstance(row, list):
+        row = row[0] if row else None
+    if not row:
+        return return_error("INTERNAL_SERVER_ERROR")
 
     return jsonify(message_dict(row)), HTTPStatus.CREATED
 
@@ -194,8 +196,6 @@ def add_request(chatID):
                     "status": "pending",
                 }
             )
-            .select("request_id,request_text,status,tokens_to_spend,created_at")
-            .single()
             .execute()
             .data
         )
@@ -205,6 +205,10 @@ def add_request(chatID):
             "You do not have enough tokens to create a new request.",
         )
     # pylint: enable=no-member
+    if isinstance(row, list):
+        row = row[0] if row else None
+    if not row:
+        return return_error("INTERNAL_SERVER_ERROR")
 
     return jsonify(request_dict(row)), HTTPStatus.CREATED
 
