@@ -1,11 +1,8 @@
 """Chat and auth-related reads/writes against Supabase (RLS enforced via user JWT)."""
 
 from __future__ import annotations
-
 from typing import Any
-
 from postgrest.exceptions import APIError
-
 
 def api_ts(value: Any) -> str:
     if value is None:
@@ -15,10 +12,7 @@ def api_ts(value: Any) -> str:
         return s[:-6] + "Z"
     return s
 
-
-def categories_from_flask_arg(
-    values: list[str] | None, raw: str | None
-) -> list[str] | None:
+def categories_from_flask_arg(values: list[str] | None, raw: str | None) -> list[str] | None:
     merged: list[str] = []
     if values:
         merged.extend(values)
@@ -28,132 +22,61 @@ def categories_from_flask_arg(
         merged = [p.strip() for p in raw.split(",") if p.strip()]
     return merged if merged else None
 
-
 def profile_map(client, user_ids: set[str]) -> dict[str, dict]:
     ids = [i for i in user_ids if i]
     if not ids:
         return {}
-    rows = (
-        client.table("profiles")
-        .select("user_id,username,display_name")
-        .in_("user_id", ids)
-        .execute()
-        .data
-        or []
-    )
+    rows = client.table("profiles").select("user_id,username,display_name").in_("user_id", ids).execute().data or []
     return {str(r["user_id"]): r for r in rows}
 
-
-def token_totals_by_chat(client, chat_ids: list[str]) -> dict[str, int]:
-    if not chat_ids:
-        return {}
-    rows = (
-        client.table("requests")
-        .select("chat_id,tokens_to_spend")
-        .in_("chat_id", chat_ids)
-        .execute()
-        .data
-        or []
-    )
-    out: dict[str, int] = {}
-    for r in rows:
-        cid = r["chat_id"]
-        out[cid] = out.get(cid, 0) + int(r["tokens_to_spend"])
-    return out
-
-
-def chat_summary_dict(chat: dict, tokens: int) -> dict:
+def chat_summary_dict(client, chat: dict) -> dict:
     return {
         "chatID": chat["chat_id"],
-        "title": chat.get("title") or "",
+        "title": chat.get("title"),
+        "originalRequest": chat.get("original_request") or "",
         "category": chat.get("category") or "",
         "status": chat["status"],
-        "tokens": tokens,
+        "tokens": int(chat.get("tokens_spent") or 0),
         "createdAt": api_ts(chat.get("created_at")),
     }
 
-
 def message_dict(row: dict) -> dict:
     return {
-        "messageID": row["message_id"],
         "senderType": row["sender_type"],
         "message": row["message"],
+        "tokens": row.get("tokens", 0),
         "createdAt": api_ts(row.get("created_at")),
     }
-
-
-def request_dict(row: dict) -> dict:
-    return {
-        "requestID": row["request_id"],
-        "requestText": row["request_text"],
-        "status": row["status"],
-        "tokensSpent": int(row["tokens_to_spend"]),
-        "createdAt": api_ts(row.get("created_at")),
-    }
-
 
 def build_chat_detail(client, chat: dict) -> dict:
     cid = chat["chat_id"]
-    uid_set = {
-        str(chat["requester_id"]),
-        str(chat["responder_id"]) if chat.get("responder_id") else "",
-    }
+    uid_set = {str(chat["requester_id"]), str(chat["responder_id"]) if chat.get("responder_id") else ""}
     uid_set.discard("")
     pmap = profile_map(client, uid_set)
     rq = str(chat["requester_id"])
     rr = str(chat["responder_id"]) if chat.get("responder_id") else None
-    req_row = pmap.get(rq, {})
-    res_row = pmap.get(rr, {}) if rr else {}
-    req_username = req_row.get("username") or ""
-    res_username = res_row.get("username") if rr else None
+    req_username = pmap.get(rq, {}).get("username") or ""
+    res_username = pmap.get(rr, {}).get("username") if rr else None
 
-    msgs = (
-        client.table("messages")
-        .select("message_id,sender_type,message,created_at")
-        .eq("chat_id", cid)
-        .order("created_at", desc=False)
-        .execute()
-        .data
-        or []
-    )
-    reqs = (
-        client.table("requests")
-        .select("request_id,request_text,status,tokens_to_spend,created_at")
-        .eq("chat_id", cid)
-        .order("created_at", desc=False)
-        .execute()
-        .data
-        or []
-    )
-
+    msgs = client.table("messages").select("message_id,sender_type,message,tokens,created_at").eq("chat_id", cid).order("created_at", desc=False).execute().data or []
+    
     return {
         "chatID": cid,
-        "title": chat.get("title") or "",
+        "title": chat.get("title"),
+        "originalRequest": chat.get("original_request") or "",
         "category": chat.get("category") or "",
         "requesterUsername": req_username,
         "responderUsername": res_username,
         "status": chat["status"],
+        "tokensSpent": int(chat.get("tokens_spent") or 0),
         "createdAt": api_ts(chat.get("created_at")),
         "messages": [message_dict(m) for m in msgs],
-        "requests": [request_dict(r) for r in reqs],
     }
 
-
 def get_chat_or_none(client, chat_id: str) -> dict | None:
-    row = (
-        client.table("chats")
-        .select("*")
-        .eq("chat_id", chat_id)
-        .maybe_single()
-        .execute()
-        .data
-    )
-    return row
+    return client.table("chats").select("*").eq("chat_id", chat_id).maybe_single().execute().data
 
-
-def create_chat_with_initial_request(
-    client, body: dict
-) -> tuple[dict | None, str | None]:
+def create_chat_with_initial_request(client, body: dict) -> tuple[dict | None, str | None]:
     tokens_raw = body.get("tokensToSpend")
     if tokens_raw is None:
         return None, "invalid_tokens"
@@ -168,12 +91,7 @@ def create_chat_with_initial_request(
         res = client.rpc(
             "create_chat_with_initial_request",
             {
-                "p_title": (body.get("title") or "")
-                if isinstance(body.get("title"), str)
-                else "",
-                "p_category": (body.get("category") or "")
-                if isinstance(body.get("category"), str)
-                else "",
+                "p_category": (body.get("category") or "") if isinstance(body.get("category"), str) else "",
                 "p_request_text": body["requestText"],
                 "p_tokens_to_spend": tokens,
             },
@@ -186,34 +104,12 @@ def create_chat_with_initial_request(
         payload = payload[0] if payload else None
     if not payload or not payload.get("ok"):
         return None, "rpc_failed"
-    return payload, None
-
-
-def fulfill_request_rpc(
-    client, chat_id: str, body: dict
-) -> tuple[dict | None, str | None]:
-    atts = body.get("attachments") or []
-    if not isinstance(atts, list):
-        atts = []
-    try:
-        res = client.rpc(
-            "fulfill_chat_active_request",
-            {
-                "p_chat_id": chat_id,
-                "p_response_text": body["responseText"],
-                "p_attachments": atts,
-            },
-        ).execute()
-    except APIError:
-        return None, "rpc_failed"
-
-    payload = res.data
-    if isinstance(payload, list):
-        payload = payload[0] if payload else None
-    if not payload:
-        return None, "rpc_failed"
-    if payload.get("ok") is False and payload.get("error") == "no_active_request":
-        return None, "no_active_request"
-    if not payload.get("ok"):
-        return None, "rpc_failed"
+    
+    # Optional update title
+    if body.get("title"):
+        try:
+            client.table("chats").update({"title": body["title"]}).eq("chat_id", payload["chat_id"]).execute()
+        except:
+            pass
+            
     return payload, None
