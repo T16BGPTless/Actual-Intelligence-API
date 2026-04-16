@@ -1064,18 +1064,6 @@ paths:
         - $ref: "#/components/parameters/AccessToken"
         
 
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                accountName:
-                  type: string
-                  example: WamWarriors
-              required:
-                - accountName
 
       responses:
         "200":
@@ -1088,9 +1076,6 @@ paths:
               schema:
                 type: object
                 properties:
-                  accountName:
-                    type: string
-                    example: Guy
                   tokenBalance:
                     type: number
                     example: 250
@@ -1141,7 +1126,7 @@ paths:
                   summary: NOT_FOUND
                   value:
                     error: NOT_FOUND
-                    message: accountName cannot be found
+                    message: account cannot be found
 
         "500":
           description: |
@@ -1176,14 +1161,10 @@ paths:
             schema:
               type: object
               properties:
-                accountName:
-                  type: string
-                  example: Guy
                 tokens:
                   type: number
                   example: 100
               required:
-                - accountName
                 - tokens
 
       responses:
@@ -1197,9 +1178,7 @@ paths:
               schema:
                 type: object
                 properties:
-                  accountName:
-                    type: string
-                    example: WamWarriors
+
                   tokensAdded:
                     type: number
                     example: 100
@@ -1253,7 +1232,7 @@ paths:
                   summary: NOT_FOUND
                   value:
                     error: NOT_FOUND
-                    message: accountName cannot be found
+                    message: account cannot be found
 
         "500":
           description: |
@@ -1288,14 +1267,10 @@ paths:
             schema:
               type: object
               properties:
-                accountName:
-                  type: string
-                  example: WamWarriors
                 tokens:
                   type: number
                   example: 100
               required:
-                - accountName
                 - tokens
 
       responses:
@@ -1309,9 +1284,7 @@ paths:
               schema:
                 type: object
                 properties:
-                  accountName:
-                    type: string
-                    example: WamWarriors
+
                   tokensRedeemed:
                     type: number
                     example: 100
@@ -1365,7 +1338,7 @@ paths:
                   summary: NOT_FOUND
                   value:
                     error: NOT_FOUND
-                    message: accountName cannot be found
+                    message: account cannot be found
 
         "409":
           description: |

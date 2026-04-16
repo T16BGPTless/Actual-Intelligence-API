@@ -37,6 +37,9 @@ class QueryChain:
     def delete(self, *_args, **_kwargs):
         return self
 
+    def limit(self, *_args, **_kwargs):
+        return self
+
     def maybe_single(self, *_args, **_kwargs):
         return self
 
