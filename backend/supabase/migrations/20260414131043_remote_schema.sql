@@ -1359,3 +1359,95 @@ revoke update on table "public"."user_roles" from "service_role";
 CREATE TRIGGER on_auth_user_created AFTER INSERT ON auth.users FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
 
 
+
+-- 1. Add features to chats
+ALTER TABLE public.chats 
+  ADD COLUMN IF NOT EXISTS original_request text DEFAULT '',
+  ADD COLUMN IF NOT EXISTS tokens_spent bigint DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS rating int,
+  ADD COLUMN IF NOT EXISTS resolved boolean;
+
+-- 2. Add tokens to messages
+ALTER TABLE public.messages
+  ADD COLUMN IF NOT EXISTS tokens bigint DEFAULT 0;
+
+-- 3. Create or replace the chat creation function
+DROP FUNCTION IF EXISTS public.create_chat_with_initial_request(text, text, text, bigint);
+CREATE OR REPLACE FUNCTION public.create_chat_with_initial_request(p_category text, p_request_text text, p_tokens_to_spend bigint)
+RETURNS jsonb
+LANGUAGE plpgsql
+SET search_path TO public
+AS $$
+declare
+  v_chat_id text;
+  v_uid uuid := auth.uid();
+begin
+  if v_uid is null then
+    raise exception 'not authenticated';
+  end if;
+
+  if p_request_text is null or length(trim(p_request_text)) = 0 then
+    raise exception 'invalid_request_text';
+  end if;
+
+  if p_tokens_to_spend is null or p_tokens_to_spend <= 0 then
+    raise exception 'invalid_tokens';
+  end if;
+
+  insert into public.chats (requester_id, category, original_request, tokens_spent, status, claim_state, title)
+  values (
+    v_uid,
+    coalesce(nullif(trim(p_category), ''), 'general'),
+    trim(p_request_text),
+    p_tokens_to_spend,
+    'open',
+    'unclaimed',
+    null
+  )
+  returning chat_id into v_chat_id;
+
+  return jsonb_build_object(
+    'ok', true,
+    'chat_id', v_chat_id
+  );
+end;
+$$;
+
+-- 4. Clean up old tables
+ALTER TABLE IF EXISTS public.token_transactions DROP COLUMN IF EXISTS request_id CASCADE;
+DROP TABLE IF EXISTS public.fulfillments CASCADE;
+DROP TABLE IF EXISTS public.requests CASCADE;
+DROP FUNCTION IF EXISTS public.fulfill_chat_active_request CASCADE;
+
+-- 5. Fix permissions for accounts table
+GRANT ALL ON TABLE "public"."accounts" TO "postgres";
+GRANT ALL ON TABLE "public"."accounts" TO "anon";
+GRANT ALL ON TABLE "public"."accounts" TO "authenticated";
+GRANT ALL ON TABLE "public"."accounts" TO "service_role";
+
+-- 6. Fix permissions for other dependent tables
+GRANT ALL ON TABLE "public"."token_balances" TO "postgres";
+GRANT ALL ON TABLE "public"."token_balances" TO "anon";
+GRANT ALL ON TABLE "public"."token_balances" TO "authenticated";
+GRANT ALL ON TABLE "public"."token_balances" TO "service_role";
+
+GRANT ALL ON TABLE "public"."token_transactions" TO "postgres";
+GRANT ALL ON TABLE "public"."token_transactions" TO "anon";
+GRANT ALL ON TABLE "public"."token_transactions" TO "authenticated";
+GRANT ALL ON TABLE "public"."token_transactions" TO "service_role";
+
+GRANT ALL ON TABLE "public"."chats" TO "postgres";
+GRANT ALL ON TABLE "public"."chats" TO "anon";
+GRANT ALL ON TABLE "public"."chats" TO "authenticated";
+GRANT ALL ON TABLE "public"."chats" TO "service_role";
+
+GRANT ALL ON TABLE "public"."messages" TO "postgres";
+GRANT ALL ON TABLE "public"."messages" TO "anon";
+GRANT ALL ON TABLE "public"."messages" TO "authenticated";
+GRANT ALL ON TABLE "public"."messages" TO "service_role";
+
+GRANT ALL ON TABLE "public"."profiles" TO "postgres";
+GRANT ALL ON TABLE "public"."profiles" TO "anon";
+GRANT ALL ON TABLE "public"."profiles" TO "authenticated";
+GRANT ALL ON TABLE "public"."profiles" TO "service_role";
+
