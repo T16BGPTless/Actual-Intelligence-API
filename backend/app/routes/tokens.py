@@ -6,7 +6,7 @@ from flask import Blueprint, jsonify, request
 from postgrest.exceptions import APIError
 
 from app.routes.helpers import require_access_token, require_supabase_user, return_error
-from app.supabase_client import service_client, user_client
+from app.supabase_client import service_client
 
 tokens_bp = Blueprint("tokens", __name__)
 
