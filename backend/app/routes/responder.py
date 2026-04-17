@@ -10,6 +10,22 @@ from app.supabase_client import user_client
 
 responder_bp = Blueprint("responder", __name__)
 
+@responder_bp.route("/v1/responder/chats", methods=["GET"])
+def claimed_chats():
+    access_token, error = require_access_token()
+    if error: return error
+    user, error = require_supabase_user(access_token)
+    if error: return error
+        
+    client = user_client(access_token)
+    try:
+        q = client.table("chats").select("*").eq("responder_id", str(user.id)).neq("requester_id", str(user.id))
+        data = q.order("created_at", desc=False).execute().data or []
+    except APIError:
+        return return_error("INTERNAL_SERVER_ERROR")
+        
+    return jsonify([chat_summary_dict(client, c) for c in data]), HTTPStatus.OK
+
 @responder_bp.route("/v1/responder/chats/unclaimed", methods=["GET"])
 def browse_chats():
     access_token, error = require_access_token()
@@ -26,21 +42,23 @@ def browse_chats():
 
     return jsonify([chat_summary_dict(client, c) for c in data]), HTTPStatus.OK
 
-@responder_bp.route("/v1/responder/chats", methods=["GET"])
-def claimed_chats():
+@responder_bp.route("/v1/responder/chats/<chat_id>", methods=["GET"])
+def get_chat_detail(chat_id):
     access_token, error = require_access_token()
     if error: return error
     user, error = require_supabase_user(access_token)
     if error: return error
         
+    body = request.get_json(silent=True) or {}
     client = user_client(access_token)
-    try:
-        q = client.table("chats").select("*").eq("responder_id", str(user.id)).neq("requester_id", str(user.id))
-        data = q.order("created_at", desc=False).execute().data or []
-    except APIError:
-        return return_error("INTERNAL_SERVER_ERROR")
+    chat = get_chat_or_none(client, chat_id)
+    if not chat:
+        return return_error("NOT_FOUND", "Not Found")
         
-    return jsonify([chat_summary_dict(client, c) for c in data]), HTTPStatus.OK
+    if str(chat["responder_id"]) != str(user.id) and chat["status"] != "open":
+        return return_error("FORBIDDEN", "Forbidden")
+        
+    return jsonify(build_chat_detail(client, chat)), HTTPStatus.OK
 
 @responder_bp.route("/v1/responder/chats/<chat_id>/claim", methods=["POST"])
 def claim_chat(chat_id):
@@ -107,24 +125,6 @@ def post_message(chat_id):
         return return_error("INTERNAL_SERVER_ERROR")
     
     return jsonify({"message": "Message sent."}), HTTPStatus.CREATED
-
-@responder_bp.route("/v1/responder/chats/<chat_id>", methods=["GET"])
-def get_chat_detail(chat_id):
-    access_token, error = require_access_token()
-    if error: return error
-    user, error = require_supabase_user(access_token)
-    if error: return error
-        
-    body = request.get_json(silent=True) or {}
-    client = user_client(access_token)
-    chat = get_chat_or_none(client, chat_id)
-    if not chat:
-        return return_error("NOT_FOUND", "Not Found")
-        
-    if str(chat["responder_id"]) != str(user.id) and chat["status"] != "open":
-        return return_error("FORBIDDEN", "Forbidden")
-        
-    return jsonify(build_chat_detail(client, chat)), HTTPStatus.OK
 
 @responder_bp.route("/v1/responder/chats/<chat_id>/close", methods=["POST"])
 def close_chat(chat_id):
