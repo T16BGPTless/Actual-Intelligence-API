@@ -4,7 +4,7 @@ from http import HTTPStatus
 from flask import Blueprint, jsonify, request
 from postgrest.exceptions import APIError
 
-from app.chat_data import build_chat_detail, get_chat_or_none, chat_summary_dict
+from app.chat_data import build_chat_detail, get_chat_or_none, chat_summary_dict, message_dict
 from app.routes.helpers import require_access_token, require_supabase_user, return_error
 from app.supabase_client import user_client
 
@@ -49,7 +49,6 @@ def get_chat_detail(chat_id):
     user, error = require_supabase_user(access_token)
     if error: return error
         
-    body = request.get_json(silent=True) or {}
     client = user_client(access_token)
     chat = get_chat_or_none(client, chat_id)
     if not chat:
@@ -87,7 +86,15 @@ def claim_chat(chat_id):
             "responder_id": str(user.id),
             "title": title
         }).eq("chat_id", chat_id).execute()
-    except APIError:
+    except APIError as e:
+        msg = getattr(e, "message", "") or ""
+        code = getattr(e, "code", "") or ""
+        
+        if "policy" in msg.lower() or code == "42501":
+            return return_error("FORBIDDEN", "Permission denied")
+        if "duplicate" in msg.lower() or code == "23505" or "already claimed" in msg.lower():
+            return return_error("CONFLICT", "Chat already claimed")
+            
         return return_error("INTERNAL_SERVER_ERROR")
     
     return jsonify({"message": "Chat successfully claimed."}), HTTPStatus.OK
@@ -115,16 +122,23 @@ def post_message(chat_id):
         return return_error("BAD_REQUEST", "Chat is not in claimed state")
         
     try:
-        client.table("messages").insert({
+        res = client.table("messages").insert({
             "chat_id": chat_id,
             "sender_id": str(user.id),
             "sender_type": "responder",
             "message": msg_text
         }).execute()
+        
+        msg_row = res.data[0] if getattr(res, "data", None) else {
+            "sender_type": "responder",
+            "message": msg_text,
+            "tokens": 0,
+            "created_at": "2026-04-16T12:00:00Z"
+        }
     except APIError:
         return return_error("INTERNAL_SERVER_ERROR")
     
-    return jsonify({"message": "Message sent."}), HTTPStatus.CREATED
+    return jsonify(message_dict(msg_row)), HTTPStatus.CREATED
 
 @responder_bp.route("/v1/responder/chats/<chat_id>/close", methods=["POST"])
 def close_chat(chat_id):

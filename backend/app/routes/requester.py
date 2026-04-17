@@ -4,7 +4,7 @@ from http import HTTPStatus
 from flask import Blueprint, jsonify, request
 from postgrest.exceptions import APIError
 
-from app.chat_data import build_chat_detail, create_chat_with_initial_request, get_chat_or_none, categories_from_flask_arg, chat_summary_dict
+from app.chat_data import build_chat_detail, create_chat_with_initial_request, get_chat_or_none, categories_from_flask_arg, chat_summary_dict, message_dict
 from app.routes.helpers import require_access_token, require_supabase_user, return_error
 from app.supabase_client import service_client, user_client
 
@@ -29,10 +29,11 @@ def create_chat():
     if err:
         return return_error("INTERNAL_SERVER_ERROR", "Unable to create chat")
         
-    return jsonify({
-        "chatID": payload["chat_id"],
-        "message": "Chat successfully created."
-    }), HTTPStatus.CREATED
+    chat = get_chat_or_none(client, payload["chat_id"])
+    if not chat:
+        return return_error("INTERNAL_SERVER_ERROR")
+        
+    return jsonify(build_chat_detail(client, chat)), HTTPStatus.CREATED
 
 @requester_bp.route("/v1/requester/chats", methods=["GET"])
 def get_user_chats():
@@ -98,7 +99,9 @@ def post_message(chat_id):
         return return_error("BAD_REQUEST", "Chat is not claimed")
         
     tokens = body.get("tokensToSpend", 0)
-    
+    if not isinstance(tokens, int) or tokens < 0:
+        return return_error("BAD_REQUEST", "tokensToSpend must be a non-negative integer")
+        
     try:
         if tokens > 0:
             req_account = sclient.table("accounts").select("account_id").eq("created_by", str(user.id)).maybe_single().execute().data
@@ -118,23 +121,24 @@ def post_message(chat_id):
                 }).execute()
             client.table("chats").update({"tokens_spent": chat.get("tokens_spent", 0) + tokens}).eq("chat_id", chat_id).execute()
             
-        client.table("messages").insert({
+        res = client.table("messages").insert({
             "chat_id": chat_id,
             "sender_id": str(user.id),
             "sender_type": "requester",
             "message": msg_text,
             "tokens": tokens
         }).execute()
+        
+        msg_row = res.data[0] if getattr(res, "data", None) else {
+            "sender_type": "requester",
+            "message": msg_text,
+            "tokens": tokens,
+            "created_at": "2026-04-16T12:00:00Z"
+        }
     except APIError as e:
         return return_error("INTERNAL_SERVER_ERROR")
     
-    return jsonify({
-        "message_id": "temp",
-        "senderType": "requester",
-        "message": msg_text,
-        "tokens": tokens,
-        "createdAt": "2026-04-16T12:00:00Z"
-    }), HTTPStatus.CREATED
+    return jsonify(message_dict(msg_row)), HTTPStatus.CREATED
 
 @requester_bp.route("/v1/requester/chats/<chat_id>/review", methods=["POST"])
 def review_chat(chat_id):
@@ -145,7 +149,17 @@ def review_chat(chat_id):
         
     body = request.get_json(silent=True) or {}
     rating = body.get("rating")
+    resolved = body.get("resolved")
     
+    if rating is None or resolved is None:
+        return return_error("BAD_REQUEST", "Missing rating or resolved")
+        
+    if not isinstance(rating, int) or not (1 <= rating <= 5):
+        return return_error("BAD_REQUEST", "Rating must be an integer between 1 and 5")
+        
+    if not isinstance(resolved, bool):
+        return return_error("BAD_REQUEST", "Resolved must be a boolean")
+        
     client = user_client(access_token)
     sclient = service_client()
     chat = get_chat_or_none(client, chat_id)
@@ -156,9 +170,7 @@ def review_chat(chat_id):
     if chat["status"] != "closing":
         return return_error("BAD_REQUEST", "Chat is not closing")
         
-    upd = {"status": "closed", "resolved": body.get("resolved", True)}
-    if rating:
-        upd["rating"] = rating
+    upd = {"status": "closed", "resolved": resolved, "rating": rating}
         
     try:
         # Payout tokens to responder

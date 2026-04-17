@@ -46,6 +46,22 @@ def test_claim_chat_success(client, monkeypatch):
     resp = client.post("/v1/responder/chats/1/claim", json={"title": "A Title"})
     assert resp.status_code == 200
 
+def test_post_message_success(client, monkeypatch):
+    _patch_auth(monkeypatch)
+    monkeypatch.setattr(res_routes, "get_chat_or_none", lambda *a: {"responder_id": "user-1", "status": "claimed"})
+    class FakeTable:
+        def insert(self, *a): return self
+        def execute(self): 
+            return SimpleNamespace(data=[{
+                "sender_type": "responder",
+                "message": "hello",
+                "tokens": 0,
+                "created_at": "2026-04-16T12:00:00+00:00"
+            }])
+    monkeypatch.setattr(res_routes, "user_client", lambda *a: SimpleNamespace(table=lambda *a: FakeTable()))
+    resp = client.post("/v1/responder/chats/1/messages", json={"message": "hello"})
+    assert resp.status_code == 201
+
 def test_post_message_forbidden(client, monkeypatch):
     _patch_auth(monkeypatch)
     monkeypatch.setattr(res_routes, "get_chat_or_none", lambda *a: {"responder_id": "other-user"})
@@ -103,12 +119,24 @@ def test_claim_chat_errors(client, monkeypatch):
     
     monkeypatch.setattr(res_routes, "get_chat_or_none", lambda *a: {"status": "open", "claim_state": "unclaimed"})
     class FakeTableErr:
+        def __init__(self, c="db", code=""):
+            self.msg = c
+            self.code = code
         def update(self, *a): return self
         def eq(self, *a): return self
-        def execute(self): raise APIError({"message": "db"})
+        def execute(self): raise APIError({"message": self.msg, "code": self.code})
+        
     monkeypatch.setattr(res_routes, "user_client", lambda *a: SimpleNamespace(table=lambda *a: FakeTableErr()))
     resp = client.post("/v1/responder/chats/1/claim", json={"title": "T"})
     assert resp.status_code == 500
+    
+    monkeypatch.setattr(res_routes, "user_client", lambda *a: SimpleNamespace(table=lambda *a: FakeTableErr(c="new row violates row-level security policy", code="42501")))
+    resp = client.post("/v1/responder/chats/1/claim", json={"title": "T"})
+    assert resp.status_code == 403
+    
+    monkeypatch.setattr(res_routes, "user_client", lambda *a: SimpleNamespace(table=lambda *a: FakeTableErr(code="23505")))
+    resp = client.post("/v1/responder/chats/1/claim", json={"title": "T"})
+    assert resp.status_code == 409
 
 def test_get_chat_detail_errors(client, monkeypatch):
     _patch_auth(monkeypatch)
