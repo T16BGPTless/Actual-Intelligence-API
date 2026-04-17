@@ -1374,6 +1374,7 @@ ALTER TABLE public.messages
 -- 3. Remove the obsolete 4-argument signature; the final 3-argument
 --    create_chat_with_initial_request definition is kept later in this migration.
 DROP FUNCTION IF EXISTS public.create_chat_with_initial_request(text, text, text, bigint);
+$$;
 
 -- 4. Clean up old tables
 ALTER TABLE IF EXISTS public.token_transactions DROP COLUMN IF EXISTS request_id CASCADE;
