@@ -16,7 +16,9 @@ def _patch_auth(monkeypatch):
         def eq(self, *a): return self
         def maybe_single(self): return self
         def in_(self, *a): return self
-        def execute(self): return SimpleNamespace(data={"account_id": "acc-1"})
+        def execute(self): return SimpleNamespace(data={"account_id": "acc-1", "balance": 1000})
+        def update(self, *a): return self
+        def insert(self, *a): return self
     monkeypatch.setattr(req_routes, "service_client", lambda *a: SimpleNamespace(table=lambda *a: FakeServiceTable()))
         
 
@@ -129,6 +131,8 @@ def test_post_message_errors(client, monkeypatch):
     monkeypatch.setattr(req_routes, "get_chat_or_none", lambda *a: {"requester_id": "user-1", "status": "claimed"})
     class FakeTableErr:
         def insert(self, *a): return self
+        def update(self, *a): return self
+        def eq(self, *a): return self
         def execute(self): raise APIError({"message": "db error"})
     monkeypatch.setattr(req_routes, "user_client", lambda *a: SimpleNamespace(table=lambda *a: FakeTableErr()))
     resp = client.post("/v1/requester/chats/1/messages", json={"message": "M", "tokensToSpend": 10})
