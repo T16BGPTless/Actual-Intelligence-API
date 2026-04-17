@@ -1371,46 +1371,9 @@ ALTER TABLE public.chats
 ALTER TABLE public.messages
   ADD COLUMN IF NOT EXISTS tokens bigint DEFAULT 0;
 
--- 3. Create or replace the chat creation function
+-- 3. Remove the obsolete 4-argument signature; the final 3-argument
+--    create_chat_with_initial_request definition is kept later in this migration.
 DROP FUNCTION IF EXISTS public.create_chat_with_initial_request(text, text, text, bigint);
-CREATE OR REPLACE FUNCTION public.create_chat_with_initial_request(p_category text, p_request_text text, p_tokens_to_spend bigint)
-RETURNS jsonb
-LANGUAGE plpgsql SECURITY DEFINER
-SET search_path TO public
-AS $$
-declare
-  v_chat_id text;
-  v_uid uuid := auth.uid();
-begin
-  if v_uid is null then
-    raise exception 'not authenticated';
-  end if;
-
-  if p_request_text is null or length(trim(p_request_text)) = 0 then
-    raise exception 'invalid_request_text';
-  end if;
-
-  if p_tokens_to_spend is null or p_tokens_to_spend <= 0 then
-    raise exception 'invalid_tokens';
-  end if;
-
-  insert into public.chats (requester_id, category, original_request, tokens_spent, status, claim_state, title)
-  values (
-    v_uid,
-    coalesce(nullif(trim(p_category), ''), 'general'),
-    trim(p_request_text),
-    p_tokens_to_spend,
-    'open',
-    'unclaimed',
-    null
-  )
-  returning chat_id into v_chat_id;
-
-  return jsonb_build_object(
-    'ok', true,
-    'chat_id', v_chat_id
-  );
-end;
 $$;
 
 -- 4. Clean up old tables
