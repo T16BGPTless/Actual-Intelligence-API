@@ -149,11 +149,8 @@ check_res(requests.post(f"{BASE_URL}/v1/responder/chats/{bad_id}/messages", json
 # Oh, my grep maybe missed the RequestBody for close or it was implicit. I'll test 400 BAD_REQUEST.
 check_res(requests.post(f"{BASE_URL}/v1/responder/chats/{cid}/close", json={}), 401, "UNAUTHORIZED")
 # Not the responder -> 403
-check_res(requests.post(f"{BASE_URL}/v1/responder/chats/{cid}/close", json={"responseText": "done"}, headers={"AccessToken": tok_req}), 403, "FORBIDDEN")
-check_res(requests.post(f"{BASE_URL}/v1/responder/chats/{bad_id}/close", json={"responseText": "done"}, headers={"AccessToken": tok_res}), 404, "NOT_FOUND")
-
-check_res(requests.post(f"{BASE_URL}/v1/responder/chats/{cid}/close", json={}, headers={"AccessToken": tok_res}), 400, "BAD_REQUEST")
-
+check_res(requests.post(f"{BASE_URL}/v1/responder/chats/{cid}/close", json={}, headers={"AccessToken": tok_req}), 403, "FORBIDDEN")
+check_res(requests.post(f"{BASE_URL}/v1/responder/chats/{bad_id}/close", json={}, headers={"AccessToken": tok_res}), 404, "NOT_FOUND")
 
 p("Testing Tokens Errors")
 check_res(requests.get(f"{BASE_URL}/v1/tokens", headers={}), 401, "UNAUTHORIZED")
@@ -188,7 +185,7 @@ check_success(requests.post(f"{BASE_URL}/v1/responder/chats/{cid2}/messages", js
 
 check_success(requests.get(f"{BASE_URL}/v1/tokens", headers={"AccessToken": tok_req}), 200)
 
-check_success(requests.post(f"{BASE_URL}/v1/responder/chats/{cid2}/close", json={"responseText": "done"}, headers={"AccessToken": tok_res}), 200)
+check_success(requests.post(f"{BASE_URL}/v1/responder/chats/{cid2}/close", json={}, headers={"AccessToken": tok_res}), 200)
 check_success(requests.post(f"{BASE_URL}/v1/requester/chats/{cid2}/review", json={"resolved": True, "rating": 5}, headers={"AccessToken": tok_req}), 200)
 
 check_success(requests.post(f"{BASE_URL}/v1/auth/logout", headers={"AccessToken": tok_req}), 200)

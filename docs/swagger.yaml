@@ -954,22 +954,6 @@ paths:
             
             Chat successfully closed.
 
-        "400":
-          description: |
-            **Bad Request**
-            
-            Missing or invalid fulfillment data
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
-              examples:
-                BAD_REQUEST:
-                  summary: BAD_REQUEST
-                  value:
-                    error: BAD_REQUEST
-                    message: "Missing or invalid fulfillment data: missing field: responseText"
-
         "401":
           description: |
             **Unauthorized**

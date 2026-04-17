@@ -10,6 +10,7 @@ def _patch_auth(monkeypatch):
     monkeypatch.setattr(res_routes, "require_access_token", lambda: ("tok", None))
     monkeypatch.setattr(res_routes, "require_supabase_user", lambda t: (SimpleNamespace(id="user-1"), None))
     monkeypatch.setattr(res_routes, "user_client", lambda *a: SimpleNamespace())
+    monkeypatch.setattr(res_routes, "service_client", lambda *a: SimpleNamespace()) # Add this!
 
 def test_browse_chats(client, monkeypatch):
     _patch_auth(monkeypatch)
@@ -174,15 +175,15 @@ def test_post_message_errors(client, monkeypatch):
 def test_close_chat_errors(client, monkeypatch):
     _patch_auth(monkeypatch)
     monkeypatch.setattr(res_routes, "get_chat_or_none", lambda *a: None)
-    resp = client.post("/v1/responder/chats/1/close", json={"responseText": "Hello!"})
+    resp = client.post("/v1/responder/chats/1/close", json={})
     assert resp.status_code == 404
     
     monkeypatch.setattr(res_routes, "get_chat_or_none", lambda *a: {"responder_id": "other"})
-    resp = client.post("/v1/responder/chats/1/close", json={"responseText": "Hello!"})
+    resp = client.post("/v1/responder/chats/1/close", json={})
     assert resp.status_code == 403
     
     monkeypatch.setattr(res_routes, "get_chat_or_none", lambda *a: {"responder_id": "user-1", "status": "closing"})
-    resp = client.post("/v1/responder/chats/1/close", json={"responseText": "Hello!"})
+    resp = client.post("/v1/responder/chats/1/close", json={})
     assert resp.status_code == 409
     
     monkeypatch.setattr(res_routes, "get_chat_or_none", lambda *a: {"responder_id": "user-1", "status": "claimed"})
@@ -191,7 +192,7 @@ def test_close_chat_errors(client, monkeypatch):
         def eq(self, *a): return self
         def execute(self): raise APIError({"message": "db"})
     monkeypatch.setattr(res_routes, "user_client", lambda *a: SimpleNamespace(table=lambda *a: FakeTableErr()))
-    resp = client.post("/v1/responder/chats/1/close", json={"responseText": "Hello!"})
+    resp = client.post("/v1/responder/chats/1/close", json={})
     assert resp.status_code == 500
 
 def test_close_chat_success(client, monkeypatch):
@@ -203,5 +204,5 @@ def test_close_chat_success(client, monkeypatch):
         def is_(self, *a): return self
         def execute(self): return SimpleNamespace(data=[{"chat_id": "1"}])
     monkeypatch.setattr(res_routes, "user_client", lambda *a: SimpleNamespace(table=lambda *a: FakeTable()))
-    resp = client.post("/v1/responder/chats/1/close", json={"responseText": "Hello!"})
+    resp = client.post("/v1/responder/chats/1/close", json={})
     assert resp.status_code == 200
