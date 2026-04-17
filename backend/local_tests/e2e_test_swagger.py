@@ -1,45 +1,148 @@
 import requests
 import sys
+import uuid
 
-BASE_URL = "http://127.0.0.1:5003"
+BASE_URL = "http://127.0.0.1:5001"
+PASS = True
+
+def check_res(res, exp_status, exp_error):
+    global PASS
+    if res.status_code != exp_status:
+        print(f"[{res.request.method} {res.request.url}] FAIL: Exp status {exp_status} got {res.status_code}. Body: {res.text}")
+        PASS = False
+        return False
+    try:
+        data = res.json()
+        if data.get("error") != exp_error:
+            print(f"[{res.request.method} {res.request.url}] FAIL: Exp error {exp_error} got {data.get('error')}. Body: {res.text}")
+            PASS = False
+            return False
+        if "message" not in data:
+            print(f"[{res.request.method} {res.request.url}] FAIL: No 'message' in response. Body: {res.text}")
+            PASS = False
+            return False
+        # Passed!
+        print(f"[{res.request.method} {res.request.url}] PASS: {exp_error}")
+        return True
+    except Exception as e:
+        print(f"[{res.request.method} {res.request.url}] FAIL: Error parsing json {e}. Body: {res.text}")
+        PASS = False
+        return False
 
 def p(msg):
-    print(f"==> {msg}")
+    print(f"\n==> {msg}")
 
-# 1. Register requester
-p("Register requester")
-req_res = requests.post(f"{BASE_URL}/v1/auth/register", json={
-    "name": "Req", "username": "requester", "email": "req@example.com", "password": "password"
-})
-if req_res.status_code != 201:
-    print(req_res.text)
-req_token = req_res.json()["accessToken"]
+# Setup users
+run_id = uuid.uuid4().hex[:6]
+req_user = {"name":"Req", "username":f"req_{run_id}", "email":f"req_{run_id}@example.com", "password":"password"}
+res_user = {"name":"Res", "username":f"res_{run_id}", "email":f"res_{run_id}@example.com", "password":"password"}
 
-# 2. Register responder
-p("Register responder")
-res_res = requests.post(f"{BASE_URL}/v1/auth/register", json={
-    "name": "Res", "username": "responder", "email": "res@example.com", "password": "password"
-})
-if res_res.status_code != 201:
-    print(res_res.text)
-res_token = res_res.json()["accessToken"]
+tok_req = requests.post(f"{BASE_URL}/v1/auth/register", json=req_user).json()["accessToken"]
+tok_res = requests.post(f"{BASE_URL}/v1/auth/register", json=res_user).json()["accessToken"]
 
-# 3. Create a chat
-p("Create Chat")
-chat_res = requests.post(f"{BASE_URL}/v1/requester/chats", json={
-    "requestText": "test req", "category": "writing", "tokensToSpend": 10
-}, headers={"AccessToken": req_token})
-if chat_res.status_code != 201:
-    print("FAILED", chat_res.status_code, chat_res.text)
-cid = chat_res.json()["chatID"]
+bad_id = uuid.uuid4()
 
-# 4. Browse chats as responder
-p("Browse Chats")
-br_res = requests.get(f"{BASE_URL}/v1/responder/chats", headers={"AccessToken": res_token})
-print(br_res.json())
+p("Testing Auth Errors")
+# POST /v1/auth/register
+check_res(requests.post(f"{BASE_URL}/v1/auth/register", json={}), 400, "BAD_REQUEST")
+check_res(requests.post(f"{BASE_URL}/v1/auth/register", json=req_user), 409, "CONFLICT")
 
-# 5. Browse chats as requester
-p("Browse as requester")
-brr_res = requests.get(f"{BASE_URL}/v1/requester/chats", headers={"AccessToken": req_token})
-print(brr_res.json())
+# POST /v1/auth/login
+check_res(requests.post(f"{BASE_URL}/v1/auth/login", json={}), 400, "BAD_REQUEST")
+check_res(requests.post(f"{BASE_URL}/v1/auth/login", json={"email": "notfound@example.com", "password": "wrong"}), 401, "UNAUTHORIZED")
 
+# POST /v1/auth/logout
+check_res(requests.post(f"{BASE_URL}/v1/auth/logout", headers={}), 401, "UNAUTHORIZED")
+check_res(requests.post(f"{BASE_URL}/v1/auth/logout", headers={"AccessToken": "invalid"}), 401, "UNAUTHORIZED")
+
+# GET /v1/auth/me
+check_res(requests.get(f"{BASE_URL}/v1/auth/me", headers={}), 401, "UNAUTHORIZED")
+
+
+p("Testing Requester Errors")
+
+# POST /v1/requester/chats
+check_res(requests.post(f"{BASE_URL}/v1/requester/chats", json={"requestText":"hi"}), 401, "UNAUTHORIZED")
+check_res(requests.post(f"{BASE_URL}/v1/requester/chats", json={}, headers={"AccessToken": tok_req}), 400, "BAD_REQUEST")
+
+# Create a real chat
+cr1_res = requests.post(f"{BASE_URL}/v1/requester/chats", json={"requestText": "req1", "tokensToSpend": 10, "category": "writing"}, headers={"AccessToken": tok_req})
+cid = cr1_res.json()["chatID"]
+
+# GET /v1/requester/chats
+check_res(requests.get(f"{BASE_URL}/v1/requester/chats", headers={}), 401, "UNAUTHORIZED")
+
+# GET /v1/requester/chats/{chatID}
+check_res(requests.get(f"{BASE_URL}/v1/requester/chats/{cid}", headers={}), 401, "UNAUTHORIZED")
+check_res(requests.get(f"{BASE_URL}/v1/requester/chats/{cid}", headers={"AccessToken": tok_res}), 403, "FORBIDDEN")
+check_res(requests.get(f"{BASE_URL}/v1/requester/chats/{bad_id}", headers={"AccessToken": tok_req}), 404, "NOT_FOUND")
+
+# POST /v1/requester/chats/{chatID}/messages
+check_res(requests.post(f"{BASE_URL}/v1/requester/chats/{cid}/messages", json={}), 401, "UNAUTHORIZED")
+check_res(requests.post(f"{BASE_URL}/v1/requester/chats/{cid}/messages", json={}, headers={"AccessToken": tok_req}), 400, "BAD_REQUEST")
+check_res(requests.post(f"{BASE_URL}/v1/requester/chats/{cid}/messages", json={"message": "hi"}, headers={"AccessToken": tok_res}), 403, "FORBIDDEN")
+check_res(requests.post(f"{BASE_URL}/v1/requester/chats/{bad_id}/messages", json={"message": "hi"}, headers={"AccessToken": tok_req}), 404, "NOT_FOUND")
+
+# POST /v1/requester/chats/{chatID}/review
+check_res(requests.post(f"{BASE_URL}/v1/requester/chats/{cid}/review", json={"resolved": True, "rating": 5}), 401, "UNAUTHORIZED")
+check_res(requests.post(f"{BASE_URL}/v1/requester/chats/{cid}/review", json={"resolved": True, "rating": 5}, headers={"AccessToken": tok_res}), 403, "FORBIDDEN")
+check_res(requests.post(f"{BASE_URL}/v1/requester/chats/{bad_id}/review", json={"resolved": True, "rating": 5}, headers={"AccessToken": tok_req}), 404, "NOT_FOUND")
+
+
+p("Testing Responder Errors")
+
+# GET /v1/responder/chats
+check_res(requests.get(f"{BASE_URL}/v1/responder/chats", headers={}), 401, "UNAUTHORIZED")
+
+# GET /v1/responder/chats/unclaimed
+check_res(requests.get(f"{BASE_URL}/v1/responder/chats/unclaimed", headers={}), 401, "UNAUTHORIZED")
+
+# GET /v1/responder/chats/{chatID}
+check_res(requests.get(f"{BASE_URL}/v1/responder/chats/{cid}", headers={}), 401, "UNAUTHORIZED")
+check_res(requests.get(f"{BASE_URL}/v1/responder/chats/{cid}", headers={"AccessToken": tok_res}), 403, "FORBIDDEN") # Cannot access before claiming
+check_res(requests.get(f"{BASE_URL}/v1/responder/chats/{bad_id}", headers={"AccessToken": tok_res}), 404, "NOT_FOUND")
+
+# POST /v1/responder/chats/{chatID}/claim
+check_res(requests.post(f"{BASE_URL}/v1/responder/chats/{cid}/claim", json={"title": "claim"}), 401, "UNAUTHORIZED")
+check_res(requests.post(f"{BASE_URL}/v1/responder/chats/{cid}/claim", json={}, headers={"AccessToken": tok_res}), 400, "BAD_REQUEST")
+check_res(requests.post(f"{BASE_URL}/v1/responder/chats/{cid}/claim", json={"title": "claim"}, headers={"AccessToken": tok_req}), 403, "FORBIDDEN") # Required responder can't be requester
+# Wait, a requester CAN claim if they have a responder role? In some apps roles are mixed. In our app we did check responder != requester:
+# Wait, actually let's just make sure 404 works
+check_res(requests.post(f"{BASE_URL}/v1/responder/chats/{bad_id}/claim", json={"title": "claim"}, headers={"AccessToken": tok_res}), 404, "NOT_FOUND")
+
+# Let responder claim it successfully so we can test conflict
+cl_res = requests.post(f"{BASE_URL}/v1/responder/chats/{cid}/claim", json={"title": "Claimed"}, headers={"AccessToken": tok_res})
+if cl_res.status_code == 200:
+    # Double claim -> 409
+    tok_res2 = requests.post(f"{BASE_URL}/v1/auth/register", json={"name":"Res2", "username":f"res2_{run_id}", "email":f"res2_{run_id}@example.com", "password":"password"}).json()["accessToken"]
+    check_res(requests.post(f"{BASE_URL}/v1/responder/chats/{cid}/claim", json={"title": "Claimed"}, headers={"AccessToken": tok_res2}), 409, "CONFLICT")
+else:
+    print(f"Failed to setup claim for 409 conflict test: {cl_res.text}")
+
+# POST /v1/responder/chats/{chatID}/messages
+check_res(requests.post(f"{BASE_URL}/v1/responder/chats/{cid}/messages", json={"message": "reshi"}), 401, "UNAUTHORIZED")
+check_res(requests.post(f"{BASE_URL}/v1/responder/chats/{cid}/messages", json={}, headers={"AccessToken": tok_res}), 400, "BAD_REQUEST")
+check_res(requests.post(f"{BASE_URL}/v1/responder/chats/{cid}/messages", json={"message": "reshi"}, headers={"AccessToken": tok_req}), 403, "FORBIDDEN")
+check_res(requests.post(f"{BASE_URL}/v1/responder/chats/{bad_id}/messages", json={"message": "reshi"}, headers={"AccessToken": tok_res}), 404, "NOT_FOUND")
+
+# POST /v1/responder/chats/{chatID}/close
+# Wait, need to send responseText inside empty json? No, close description says:
+# "400 Bad Request... Missing or invalid fulfillment data: missing field: responseText" Actually let's check swagger, oh wait it doesn't have requestBody in the yaml I cat'd, wait yes it does: "400 Bad Request - Missing or invalid fulfillment data... responseText" 
+# Oh, my grep maybe missed the RequestBody for close or it was implicit. I'll test 400 BAD_REQUEST.
+check_res(requests.post(f"{BASE_URL}/v1/responder/chats/{cid}/close", json={}), 401, "UNAUTHORIZED")
+# Not the responder -> 403
+check_res(requests.post(f"{BASE_URL}/v1/responder/chats/{cid}/close", json={"responseText": "done"}, headers={"AccessToken": tok_req}), 403, "FORBIDDEN")
+check_res(requests.post(f"{BASE_URL}/v1/responder/chats/{bad_id}/close", json={"responseText": "done"}, headers={"AccessToken": tok_res}), 404, "NOT_FOUND")
+
+check_res(requests.post(f"{BASE_URL}/v1/responder/chats/{cid}/close", json={}, headers={"AccessToken": tok_res}), 400, "BAD_REQUEST")
+
+
+p("Testing Tokens Errors")
+check_res(requests.get(f"{BASE_URL}/v1/tokens", headers={}), 401, "UNAUTHORIZED")
+
+if PASS:
+    print("\nALL SWAGGER ERROR TESTS PASSED!")
+    sys.exit(0)
+else:
+    print("\nSOME ERRORS FAILED.")
+    sys.exit(1)
