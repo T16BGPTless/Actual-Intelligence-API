@@ -1481,3 +1481,46 @@ begin
 end;
 $$;
 CREATE POLICY "chats_close_responder" ON "public"."chats" FOR UPDATE TO "authenticated" USING (("responder_id" = "auth"."uid"()) AND ("status" = 'claimed'::"public"."chat_status")) WITH CHECK (("status" = 'closing'::"public"."chat_status"));
+CREATE OR REPLACE FUNCTION public.post_requester_message(p_chat_id text, p_message text, p_tokens bigint)
+RETURNS jsonb
+LANGUAGE plpgsql SECURITY DEFINER
+SET search_path TO public
+AS $$
+declare
+  v_uid uuid := auth.uid();
+  v_account_id uuid;
+  v_balance bigint;
+  v_msg public.messages%rowtype;
+begin
+  if v_uid is null then
+    raise exception 'not authenticated';
+  end if;
+
+  if p_tokens > 0 then
+    SELECT account_id INTO v_account_id FROM public.accounts WHERE created_by = v_uid LIMIT 1;
+    IF v_account_id IS NULL THEN
+      raise exception 'invalid_tokens';
+    END IF;
+
+    SELECT balance INTO v_balance FROM public.token_balances WHERE account_id = v_account_id;
+    IF v_balance IS NULL OR v_balance < p_tokens THEN
+      raise exception 'invalid_tokens';
+    END IF;
+
+    UPDATE public.token_balances SET balance = balance - p_tokens WHERE account_id = v_account_id;
+
+    INSERT INTO public.token_transactions (account_id, txn_type, amount, chat_id, created_by)
+    VALUES (v_account_id, 'spend', -p_tokens, p_chat_id, v_uid);
+
+    UPDATE public.chats SET tokens_spent = coalesce(tokens_spent, 0) + p_tokens WHERE chat_id = p_chat_id;
+  end if;
+
+  INSERT INTO public.messages (chat_id, sender_id, sender_type, message, tokens)
+  VALUES (p_chat_id, v_uid, 'requester', trim(p_message), p_tokens)
+  RETURNING * INTO v_msg;
+
+  return row_to_json(v_msg)::jsonb;
+end;
+$$;
+
+GRANT ALL ON FUNCTION public.post_requester_message(text, text, bigint) TO authenticated;

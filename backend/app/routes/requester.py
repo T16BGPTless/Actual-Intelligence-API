@@ -103,39 +103,24 @@ def post_message(chat_id):
         return return_error("BAD_REQUEST", "tokensToSpend must be a non-negative integer")
         
     try:
-        if tokens > 0:
-            req_account = sclient.table("accounts").select("account_id").eq("created_by", str(user.id)).maybe_single().execute().data
-            if req_account:
-                acc_id = req_account["account_id"]
-                cur = sclient.table("token_balances").select("balance").eq("account_id", acc_id).maybe_single().execute().data
-                cur_bal = int((cur or {}).get("balance") or 0)
-                if cur_bal < tokens:
-                    return return_error("BAD_REQUEST", "invalid_tokens")
-                sclient.table("token_balances").update({"balance": cur_bal - tokens}).eq("account_id", acc_id).execute()
-                sclient.table("token_transactions").insert({
-                    "account_id": acc_id,
-                    "txn_type": "spend",
-                    "amount": -tokens,
-                    "chat_id": chat_id,
-                    "created_by": str(user.id)
-                }).execute()
-            client.table("chats").update({"tokens_spent": chat.get("tokens_spent", 0) + tokens}).eq("chat_id", chat_id).execute()
-            
-        res = client.table("messages").insert({
-            "chat_id": chat_id,
-            "sender_id": str(user.id),
-            "sender_type": "requester",
-            "message": msg_text,
-            "tokens": tokens
-        }).execute()
+        res = client.rpc(
+            "post_requester_message",
+            {
+                "p_chat_id": chat_id,
+                "p_message": msg_text,
+                "p_tokens": tokens
+            }
+        ).execute()
         
-        msg_row = res.data[0] if getattr(res, "data", None) else {
-            "sender_type": "requester",
-            "message": msg_text,
-            "tokens": tokens,
-            "created_at": "2026-04-16T12:00:00Z"
-        }
+        payload = res.data
+        if not payload:
+            return return_error("INTERNAL_SERVER_ERROR", "Message insert failed")
+            
+        msg_row = payload
     except APIError as e:
+        msg = getattr(e, "message", "") or ""
+        if "invalid_tokens" in msg:
+            return return_error("BAD_REQUEST", "invalid_tokens")
         return return_error("INTERNAL_SERVER_ERROR")
     
     return jsonify(message_dict(msg_row)), HTTPStatus.CREATED
