@@ -27,7 +27,7 @@ def create_chat():
     if err == "invalid_tokens":
         return return_error("BAD_REQUEST", "Invalid tokensToSpend")
     if err:
-        return return_error("BAD_REQUEST", err)
+        return return_error("INTERNAL_SERVER_ERROR", "Unable to create chat")
         
     return jsonify({
         "chatID": payload["chat_id"],
