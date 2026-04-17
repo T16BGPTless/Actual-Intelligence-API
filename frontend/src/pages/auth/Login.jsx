@@ -6,7 +6,6 @@ import axios from "axios";
 import {
   TextField,
   Button,
-  Alert,
   Box,
   Container,
   Typography,
@@ -27,7 +26,7 @@ function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [error, setError] = useState("");
+  const [errors, setErrors] = useState({}); // Field-specific errors
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
@@ -37,14 +36,33 @@ function Login() {
 
   const handleLogin = async (e) => {
     e.preventDefault();
-    setError("");
+    setErrors({});
+
+    // Local validation check
+    let tempErrors = {};
+    if (!email) tempErrors.email = "Email is required";
+    if (!password) tempErrors.password = "Password is required";
+
+    if (Object.keys(tempErrors).length > 0) {
+      setErrors(tempErrors);
+      return;
+    }
+
     try {
       const res = await axios.post(`${BACKEND_URL}/v1/auth/login`, { email, password });
       localStorage.setItem("token", res.data.accessToken);
       localStorage.setItem("email", email);
       navigate("/");
     } catch (err) {
-      setError(err.response?.data?.message || "Login failed");
+      const msg = err.response?.data?.message || "Login failed";
+      // Point general auth failures (invalid creds) to both or specific fields
+      if (msg.toLowerCase().includes("user") || msg.toLowerCase().includes("email")) {
+        setErrors({ email: msg });
+      } else if (msg.toLowerCase().includes("password")) {
+        setErrors({ password: msg });
+      } else {
+        setErrors({ general: msg });
+      }
     }
   };
 
@@ -54,12 +72,28 @@ function Login() {
 
   const inputStyles = {
     mb: 2,
+    position: 'relative',
     '& .MuiOutlinedInput-root': {
       borderRadius: '0px',
       backgroundColor: '#ffffff',
       '& fieldset': { borderWidth: '2px', borderColor: '#eee' },
       '&:hover fieldset': { borderColor: '#bbb' },
       '&.Mui-focused fieldset': { borderColor: 'black', borderWidth: '2px' },
+      // Red outline on error
+      '&.Mui-error fieldset': { borderColor: '#ff1744' },
+    },
+    // Error message "pointing" to the right
+    '& .MuiFormHelperText-root': {
+      position: { md: 'absolute' },
+      left: { md: '100%' },
+      top: { md: '50%' },
+      transform: { md: 'translateY(-50%)' },
+      width: { md: 'max-content' },
+      ml: { md: 2 },
+      fontWeight: 800,
+      textTransform: 'uppercase',
+      fontSize: '0.7rem',
+      color: '#ff1744 !important',
     }
   };
 
@@ -90,7 +124,7 @@ function Login() {
   });
 
   return (
-    <Container maxWidth="xs">
+    <Container maxWidth="xs" sx={{ overflow: 'visible' }}>
       <Box sx={{ mt: 12, display: 'flex', flexDirection: 'column', alignItems: 'center', pb: 4 }}>
         
         <Typography variant="h4" sx={{ fontWeight: 900, mb: 1, textTransform: 'uppercase', letterSpacing: '-1px', ...fadeSlide(0) }}>
@@ -101,20 +135,18 @@ function Login() {
           Sign in to your account
         </Typography>
 
-        {error && (
-          <Alert severity="error" variant="filled" sx={{ width: '100%', mb: 3, borderRadius: '0px', bgcolor: 'black', ...fadeSlide(100) }}>
-            {error}
-          </Alert>
-        )}
-
-        {/* Keeping text fields without wrapping them in a dedicated FormControl */}
         <Box component="form" onSubmit={handleLogin} sx={{ width: '100%' }}>
           
           <TextField
             placeholder="EMAIL ADDRESS"
             fullWidth
             value={email}
-            onChange={(e) => setEmail(e.target.value)}
+            onChange={(e) => {
+                setEmail(e.target.value);
+                if(errors.email) setErrors({...errors, email: null});
+            }}
+            error={!!errors.email}
+            helperText={errors.email}
             sx={{ ...inputStyles, ...fadeSlide(150) }}
           />
 
@@ -123,7 +155,12 @@ function Login() {
             type={showPassword ? 'text' : 'password'}
             fullWidth
             value={password}
-            onChange={(e) => setPassword(e.target.value)}
+            onChange={(e) => {
+                setPassword(e.target.value);
+                if(errors.password) setErrors({...errors, password: null});
+            }}
+            error={!!errors.password}
+            helperText={errors.password}
             sx={{ ...inputStyles, mb: 3, ...fadeSlide(200) }}
             slotProps={{
               input: {
@@ -144,6 +181,12 @@ function Login() {
               },
             }}
           />
+
+          {errors.general && (
+            <Typography variant="caption" sx={{ color: '#ff1744', fontWeight: 900, mb: 2, display: 'block', textAlign: 'center', textTransform: 'uppercase' }}>
+              {errors.general}
+            </Typography>
+          )}
 
           <Button variant="contained" fullWidth type="submit" disableElevation sx={{ ...actionButtonStyle(true), ...fadeSlide(250) }}>
             Sign In

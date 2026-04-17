@@ -12,6 +12,8 @@ from app.config import supabase_email_redirect_to
 from app.routes.helpers import require_access_token, require_supabase_user, return_error
 from app.supabase_client import anon_client, service_client, user_client
 
+from supabase_auth.errors import AuthError
+
 auth_bp = Blueprint("auth", __name__)
 ACTIVE_ROLES = {"requester", "responder"}
 
@@ -128,11 +130,13 @@ def register():
             "name": body["name"],
         }
     }
+
     redirect_to = supabase_email_redirect_to()
     if redirect_to:
         signup_options["email_redirect_to"] = redirect_to
 
     try:
+        # ✅ SIGN UP
         auth_response = anon_client().auth.sign_up(
             {
                 "email": body["email"],
@@ -140,41 +144,48 @@ def register():
                 "options": signup_options,
             }
         )
-    except AuthApiError as e:
-        msg = (e.message or "").lower()
-        if "already" in msg or "registered" in msg:
-            return return_error("CONFLICT", "An account with this email already exists")
-        return return_error("BAD_REQUEST", e.message or "Registration failed")
 
-    signin_fallback_error = return_error(
-        "FORBIDDEN",
-        "Registration succeeded but automatic sign-in failed.",
-    )
-    if not auth_response.session:
+        # ✅ If session exists → done
+        if auth_response.session:
+            return _auth_success_response(auth_response, HTTPStatus.CREATED)
+
+        # ❗ No session → fallback login flow
         user = auth_response.user
         if not user:
             return return_error("INTERNAL_SERVER_ERROR")
 
-        # If email confirmations are enabled upstream, force-confirm and continue login.
         try:
             service_client().auth.admin.update_user_by_id(
                 str(user.id),
                 {"email_confirm": True},
             )
-        except AuthApiError:
-            return return_error("INTERNAL_SERVER_ERROR", "Registration failed")
+        except Exception as e:
+            print("CONFIRM ERROR:", e)
+            return return_error("INTERNAL_SERVER_ERROR", str(e))
 
         try:
             auth_response = anon_client().auth.sign_in_with_password(
                 {"email": body["email"], "password": body["password"]}
             )
-        except AuthApiError:
-            return signin_fallback_error
+        except Exception as e:
+            print("SIGNIN ERROR:", e)
+            return return_error("INTERNAL_SERVER_ERROR", str(e))
 
         if not auth_response.session:
-            return signin_fallback_error
+            return return_error(
+                "FORBIDDEN",
+                "Registration succeeded but automatic sign-in failed.",
+            )
 
-    return _auth_success_response(auth_response, HTTPStatus.CREATED)
+        return _auth_success_response(auth_response, HTTPStatus.CREATED)
+
+    except AuthError as e:
+        print("AUTH ERROR:", e)
+        return return_error("BAD_REQUEST", str(e))
+
+    except Exception as e:
+        print("UNEXPECTED ERROR:", e)
+        return return_error("INTERNAL_SERVER_ERROR", str(e))
 
 
 @auth_bp.route("/v1/auth/login", methods=["POST"])
