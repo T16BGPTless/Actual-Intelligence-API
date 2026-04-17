@@ -115,7 +115,7 @@ def create_chat_with_initial_request(client, body: dict) -> tuple[dict | None, s
     if body.get("title"):
         try:
             client.table("chats").update({"title": body["title"]}).eq("chat_id", payload["chat_id"]).execute()
-        except:
-            pass
+        except APIError:
+            return payload, "title_update_failed"
             
     return payload, None
