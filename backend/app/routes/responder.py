@@ -6,7 +6,7 @@ from postgrest.exceptions import APIError
 
 from app.chat_data import build_chat_detail, get_chat_or_none, chat_summary_dict, message_dict
 from app.routes.helpers import require_access_token, require_supabase_user, return_error
-from app.supabase_client import user_client
+from app.supabase_client import user_client, service_client
 
 responder_bp = Blueprint("responder", __name__)
 
@@ -74,6 +74,10 @@ def claim_chat(chat_id):
     client = user_client(access_token)
     chat = get_chat_or_none(client, chat_id)
     if not chat:
+        s_client = service_client()
+        s_chat = get_chat_or_none(s_client, chat_id)
+        if s_chat and (s_chat["status"] != "open" or s_chat["claim_state"] != "unclaimed"):
+            return return_error("CONFLICT", "This chat has already been claimed")
         return return_error("NOT_FOUND", "Not Found")
         
     if chat["status"] != "open" or chat["claim_state"] != "unclaimed":
@@ -149,6 +153,10 @@ def close_chat(chat_id):
     user, error = require_supabase_user(access_token)
     if error: return error
         
+    body = request.get_json(silent=True) or {}
+    resp_text = body.get("responseText")
+    if not resp_text:
+        return return_error("BAD_REQUEST", "Missing or invalid fulfillment data: missing field: responseText")
         
     client = user_client(access_token)
     chat = get_chat_or_none(client, chat_id)
