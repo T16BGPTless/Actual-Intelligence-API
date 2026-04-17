@@ -10,7 +10,7 @@ from app.supabase_client import user_client
 
 responder_bp = Blueprint("responder", __name__)
 
-@responder_bp.route("/v1/responder/chats", methods=["GET"])
+@responder_bp.route("/v1/responder/chats/unclaimed", methods=["GET"])
 def browse_chats():
     access_token, error = require_access_token()
     if error: return error
@@ -26,7 +26,7 @@ def browse_chats():
 
     return jsonify([chat_summary_dict(client, c) for c in data]), HTTPStatus.OK
 
-@responder_bp.route("/v1/responder/chats/claimed", methods=["GET"])
+@responder_bp.route("/v1/responder/chats", methods=["GET"])
 def claimed_chats():
     access_token, error = require_access_token()
     if error: return error
