@@ -41,7 +41,8 @@ def test_claim_chat_success(client, monkeypatch):
     class FakeTable:
         def update(self, *a): return self
         def eq(self, *a): return self
-        def execute(self): pass
+        def is_(self, *a): return self
+        def execute(self): return SimpleNamespace(data=[{"chat_id": "1"}])
     monkeypatch.setattr(res_routes, "user_client", lambda *a: SimpleNamespace(table=lambda *a: FakeTable()))
     resp = client.post("/v1/responder/chats/1/claim", json={"title": "A Title"})
     assert resp.status_code == 200
@@ -124,6 +125,7 @@ def test_claim_chat_errors(client, monkeypatch):
             self.code = code
         def update(self, *a): return self
         def eq(self, *a): return self
+        def is_(self, *a): return self
         def execute(self): raise APIError({"message": self.msg, "code": self.code})
         
     monkeypatch.setattr(res_routes, "user_client", lambda *a: SimpleNamespace(table=lambda *a: FakeTableErr()))
@@ -198,7 +200,8 @@ def test_close_chat_success(client, monkeypatch):
     class FakeTable:
         def update(self, *a): return self
         def eq(self, *a): return self
-        def execute(self): pass
+        def is_(self, *a): return self
+        def execute(self): return SimpleNamespace(data=[{"chat_id": "1"}])
     monkeypatch.setattr(res_routes, "user_client", lambda *a: SimpleNamespace(table=lambda *a: FakeTable()))
     resp = client.post("/v1/responder/chats/1/close", json={"responseText": "Hello!"})
     assert resp.status_code == 200

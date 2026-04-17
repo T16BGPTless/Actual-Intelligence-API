@@ -66,26 +66,27 @@ def test_get_chat_detail_forbidden(client, monkeypatch):
 def test_post_message_success(client, monkeypatch):
     _patch_auth(monkeypatch)
     monkeypatch.setattr(req_routes, "get_chat_or_none", lambda *a: {"requester_id": "user-1", "status": "claimed"})
-    class FakeTable:
+    class FakeRpc:
         def __init__(self):
-            self.update_calls = []
-        def update(self, *a):
-            self.update_calls.append(a)
-            return self
-        def eq(self, *a): return self
-        def insert(self, *a): return self
+            self.rpc_calls = []
         def execute(self):
-            return SimpleNamespace(data=[{
+            return SimpleNamespace(data={
                 "sender_type": "requester",
                 "message": "hello",
                 "tokens": 1,
                 "created_at": "2026-04-16T12:00:00+00:00"
-            }])
-    fake_table = FakeTable()
-    monkeypatch.setattr(req_routes, "user_client", lambda *a: SimpleNamespace(table=lambda *a: fake_table))
+            })
+    class FakeClient:
+        def __init__(self):
+            self.fake_rpc = FakeRpc()
+        def rpc(self, *a, **k):
+            self.fake_rpc.rpc_calls.append((a, k))
+            return self.fake_rpc
+    fake_client = FakeClient()
+    monkeypatch.setattr(req_routes, "user_client", lambda *a: fake_client)
     resp = client.post("/v1/requester/chats/1/messages", json={"message": "hello", "tokensToSpend": 1})
     assert resp.status_code == 201
-    assert fake_table.update_calls, "Expected token-spend path to trigger an update call"
+    assert fake_client.fake_rpc.rpc_calls, "Expected token-spend path to trigger an RPC call"
 
 def test_review_chat_success(client, monkeypatch):
     _patch_auth(monkeypatch)
@@ -156,14 +157,17 @@ def test_post_message_errors(client, monkeypatch):
     resp = client.post("/v1/requester/chats/1/messages", json={"message": "x", "tokensToSpend": -2})
     assert resp.status_code == 400
     
-    class FakeTableErr:
-        def insert(self, *a): return self
-        def update(self, *a): return self
-        def eq(self, *a): return self
+    class FakeRpcErr:
         def execute(self): raise APIError({"message": "db error"})
-    monkeypatch.setattr(req_routes, "user_client", lambda *a: SimpleNamespace(table=lambda *a: FakeTableErr()))
+    monkeypatch.setattr(req_routes, "user_client", lambda *a: SimpleNamespace(rpc=lambda *a, **k: FakeRpcErr()))
     resp = client.post("/v1/requester/chats/1/messages", json={"message": "M", "tokensToSpend": 10})
     assert resp.status_code == 500
+    
+    class FakeRpcErrTokens:
+        def execute(self): raise APIError({"message": "invalid_tokens"})
+    monkeypatch.setattr(req_routes, "user_client", lambda *a: SimpleNamespace(rpc=lambda *a, **k: FakeRpcErrTokens()))
+    resp = client.post("/v1/requester/chats/1/messages", json={"message": "M", "tokensToSpend": 10})
+    assert resp.status_code == 400
 
 def test_review_chat_errors(client, monkeypatch):
     _patch_auth(monkeypatch)

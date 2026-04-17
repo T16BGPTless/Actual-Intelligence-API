@@ -3,7 +3,7 @@ import sys
 import uuid
 import time
 
-BASE_URL = "http://127.0.0.1:5001"
+BASE_URL = "http://127.0.0.1:5003"
 
 def p(msg):
     print(f"\n====================================")
@@ -255,7 +255,7 @@ def run_workflow():
     review_res = requests.post(
         f"{BASE_URL}/v1/requester/chats/{chat_id}/review", 
         headers={"AccessToken": req_token},
-        json={"rating": 5}
+        json={"rating": 5, "resolved": True}
     )
     check_status(review_res, 200)
     print("Review submitted successfully!")

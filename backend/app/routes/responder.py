@@ -80,12 +80,14 @@ def claim_chat(chat_id):
         return return_error("CONFLICT", "This chat has already been claimed")
         
     try:
-        client.table("chats").update({
+        res = client.table("chats").update({
             "status": "claimed",
             "claim_state": "claimed",
             "responder_id": str(user.id),
             "title": title
-        }).eq("chat_id", chat_id).execute()
+        }).eq("chat_id", chat_id).eq("status", "open").eq("claim_state", "unclaimed").is_("responder_id", "null").execute()
+        if not getattr(res, "data", None):
+            return return_error("CONFLICT", "This chat has already been claimed")
     except APIError as e:
         msg = getattr(e, "message", "") or ""
         code = getattr(e, "code", "") or ""
@@ -147,9 +149,6 @@ def close_chat(chat_id):
     user, error = require_supabase_user(access_token)
     if error: return error
         
-    body = request.get_json(silent=True) or {}
-    if "responseText" not in body:
-        return return_error("BAD_REQUEST", "Missing or invalid fulfillment data: missing field: responseText")
         
     client = user_client(access_token)
     chat = get_chat_or_none(client, chat_id)
