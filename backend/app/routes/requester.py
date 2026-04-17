@@ -20,7 +20,7 @@ def create_chat():
     body = request.get_json(silent=True) or {}
     for req in ["requestText", "tokensToSpend"]:
         if req not in body:
-            return return_error("BAD_REQUEST", f"Missing field: {req}")
+            return return_error("BAD_REQUEST", f"Missing or invalid chat data: missing field: {req}")
             
     client = user_client(access_token)
     payload, err = create_chat_with_initial_request(client, body)
@@ -72,7 +72,7 @@ def get_chat_detail(chat_id):
     if not chat:
         return return_error("NOT_FOUND", "Not Found")
     if str(chat["requester_id"]) != str(user.id):
-        return return_error("FORBIDDEN", "Forbidden")
+        return return_error("FORBIDDEN", "You do not have access to this content")
         
     return jsonify(build_chat_detail(client, chat)), HTTPStatus.OK
 
@@ -86,7 +86,7 @@ def post_message(chat_id):
     body = request.get_json(silent=True) or {}
     msg_text = body.get("message")
     if not msg_text:
-        return return_error("BAD_REQUEST", "Missing message")
+        return return_error("BAD_REQUEST", "Missing or invalid message data: missing field: message")
         
     client = user_client(access_token)
     sclient = service_client()
@@ -94,7 +94,7 @@ def post_message(chat_id):
     if not chat:
         return return_error("NOT_FOUND", "Not Found")
     if str(chat["requester_id"]) != str(user.id):
-        return return_error("FORBIDDEN", "Forbidden")
+        return return_error("FORBIDDEN", "You do not have access to this content")
     if chat["status"] != "claimed":
         return return_error("BAD_REQUEST", "Chat is not claimed")
         
@@ -166,7 +166,7 @@ def review_chat(chat_id):
     if not chat:
         return return_error("NOT_FOUND", "Not Found")
     if str(chat["requester_id"]) != str(user.id):
-        return return_error("FORBIDDEN", "Forbidden")
+        return return_error("FORBIDDEN", "You do not have access to this content")
     if chat["status"] != "closing":
         return return_error("BAD_REQUEST", "Chat is not closing")
         

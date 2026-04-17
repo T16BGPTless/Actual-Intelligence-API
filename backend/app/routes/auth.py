@@ -120,7 +120,7 @@ def register():
         return return_error("BAD_REQUEST", e.message or "Registration failed")
 
     signin_fallback_error = return_error(
-        "FORBIDDEN",
+        "INTERNAL_SERVER_ERROR",
         "Registration succeeded but automatic sign-in failed.",
     )
     if not auth_response.session:

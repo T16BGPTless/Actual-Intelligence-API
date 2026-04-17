@@ -229,7 +229,7 @@ def test_register_forbidden_when_signup_has_no_session_and_fallback_fails(
             "username": "ok",
         },
     )
-    assert resp.status_code == 403
+    assert resp.status_code == 500
 
 
 def test_register_internal_error_when_user_missing(client, monkeypatch):
@@ -385,7 +385,7 @@ def test_register_forbidden_when_fallback_has_no_session(client, monkeypatch):
             "username": "ok",
         },
     )
-    assert resp.status_code == 403
+    assert resp.status_code == 500
 
 
 def test_register_internal_error_when_autoconfirm_fails(client, monkeypatch):

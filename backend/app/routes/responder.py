@@ -55,7 +55,7 @@ def get_chat_detail(chat_id):
         return return_error("NOT_FOUND", "Not Found")
         
     if str(chat["responder_id"]) != str(user.id) and chat["status"] != "open":
-        return return_error("FORBIDDEN", "Forbidden")
+        return return_error("FORBIDDEN", "You do not have access to this content")
         
     return jsonify(build_chat_detail(client, chat)), HTTPStatus.OK
 
@@ -69,7 +69,7 @@ def claim_chat(chat_id):
     body = request.get_json(silent=True) or {}
     title = body.get("title")
     if not title:
-        return return_error("BAD_REQUEST", "Missing title")
+        return return_error("BAD_REQUEST", "Missing or invalid claim data: missing field: title")
         
     client = user_client(access_token)
     chat = get_chat_or_none(client, chat_id)
@@ -77,7 +77,7 @@ def claim_chat(chat_id):
         return return_error("NOT_FOUND", "Not Found")
         
     if chat["status"] != "open" or chat["claim_state"] != "unclaimed":
-        return return_error("BAD_REQUEST", "Chat is not available")
+        return return_error("CONFLICT", "This chat has already been claimed")
         
     try:
         client.table("chats").update({
@@ -91,9 +91,9 @@ def claim_chat(chat_id):
         code = getattr(e, "code", "") or ""
         
         if "policy" in msg.lower() or code == "42501":
-            return return_error("FORBIDDEN", "Permission denied")
+            return return_error("FORBIDDEN", "You do not have access to this content")
         if "duplicate" in msg.lower() or code == "23505" or "already claimed" in msg.lower():
-            return return_error("CONFLICT", "Chat already claimed")
+            return return_error("CONFLICT", "This chat has already been claimed")
             
         return return_error("INTERNAL_SERVER_ERROR")
     
@@ -109,7 +109,7 @@ def post_message(chat_id):
     body = request.get_json(silent=True) or {}
     msg_text = body.get("message")
     if not msg_text:
-        return return_error("BAD_REQUEST", "Missing message")
+        return return_error("BAD_REQUEST", "Missing or invalid message data: missing field: message")
         
     client = user_client(access_token)
     chat = get_chat_or_none(client, chat_id)
@@ -117,7 +117,7 @@ def post_message(chat_id):
         return return_error("NOT_FOUND", "Not Found")
         
     if str(chat["responder_id"]) != str(user.id):
-        return return_error("FORBIDDEN", "Forbidden")
+        return return_error("FORBIDDEN", "You do not have access to this content")
     if chat["status"] != "claimed":
         return return_error("BAD_REQUEST", "Chat is not in claimed state")
         
@@ -147,16 +147,20 @@ def close_chat(chat_id):
     user, error = require_supabase_user(access_token)
     if error: return error
         
+    body = request.get_json(silent=True) or {}
+    if "responseText" not in body:
+        return return_error("BAD_REQUEST", "Missing or invalid fulfillment data: missing field: responseText")
+        
     client = user_client(access_token)
     chat = get_chat_or_none(client, chat_id)
     if not chat:
         return return_error("NOT_FOUND", "Not Found")
         
     if str(chat["responder_id"]) != str(user.id):
-        return return_error("FORBIDDEN", "Forbidden")
+        return return_error("FORBIDDEN", "You do not have access to this content")
         
     if chat["status"] != "claimed":
-        return return_error("BAD_REQUEST", "Chat is not claimed")
+        return return_error("CONFLICT", "There is no active request to fulfill")
         
     try:
         client.table("chats").update({
