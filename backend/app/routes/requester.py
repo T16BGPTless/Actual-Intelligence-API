@@ -89,7 +89,6 @@ def post_message(chat_id):
         return return_error("BAD_REQUEST", "Missing or invalid message data: missing field: message")
         
     client = user_client(access_token)
-    sclient = service_client()
     chat = get_chat_or_none(client, chat_id)
     if not chat:
         return return_error("NOT_FOUND", "Not Found")
@@ -118,6 +117,19 @@ def post_message(chat_id):
             
         msg_row = payload
     except APIError as e:
+        import json
+        if str(getattr(e, "code", "")) == "200" or str(getattr(e, "code", "")) == "201":
+            try:
+                raw_bytes_str = getattr(e, "details", "")
+                if isinstance(raw_bytes_str, bytes):
+                    raw_bytes_str = raw_bytes_str.decode("utf-8")
+                elif isinstance(raw_bytes_str, str) and raw_bytes_str.startswith("b'") and raw_bytes_str.endswith("'"):
+                    raw_bytes_str = raw_bytes_str[2:-1].replace("\'", "'")
+                msg_row = json.loads(raw_bytes_str)
+                return jsonify(msg_row), 201
+            except Exception:
+                pass
+        
         msg = getattr(e, "message", "") or ""
         if "invalid_tokens" in msg:
             return return_error("BAD_REQUEST", "invalid_tokens")

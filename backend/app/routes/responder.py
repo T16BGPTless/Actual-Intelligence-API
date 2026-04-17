@@ -149,9 +149,6 @@ def close_chat(chat_id):
     user, error = require_supabase_user(access_token)
     if error: return error
         
-    body = request.get_json(silent=True) or {}
-    if "responseText" not in body:
-        return return_error("BAD_REQUEST", "Missing or invalid fulfillment data: missing field: responseText")
         
     client = user_client(access_token)
     chat = get_chat_or_none(client, chat_id)

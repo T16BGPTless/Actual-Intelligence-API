@@ -1524,3 +1524,4 @@ end;
 $$;
 
 GRANT ALL ON FUNCTION public.post_requester_message(text, text, bigint) TO authenticated;
+GRANT ALL ON FUNCTION public.create_chat_with_initial_request(text, text, bigint) TO "authenticated";

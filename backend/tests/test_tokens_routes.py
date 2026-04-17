@@ -26,7 +26,7 @@ def _ok_auth(monkeypatch, user_id="u1"):
 
 def test_get_tokens_success(client, monkeypatch):
     _ok_auth(monkeypatch)
-    account_chain = QueryChain({"account_id": "a1", "account_name": "Main", "created_by": "u1"})
+    account_chain = QueryChain([{"account_id": "a1", "account_name": "Main", "created_by": "u1"}])
     balance_chain = QueryChain({"balance": 42})
     def table(name):
         return account_chain if name == "accounts" else balance_chain
@@ -57,8 +57,8 @@ def test_get_tokens_not_found(client, monkeypatch):
 
 def test_buy_tokens_success(client, monkeypatch):
     _ok_auth(monkeypatch, user_id="u1")
-    account_chain = QueryChain({"account_id": "a1", "account_name": "Main", "created_by": "u1"})
-    balance_chain = QueryChain({"balance": 10})
+    account_chain = QueryChain([{"account_id": "a1", "account_name": "Main", "created_by": "u1"}])
+    balance_chain = QueryChain([{"balance": 10}])
     write_chain = QueryChain()
     def table(name):
         if name == "accounts": return account_chain
@@ -77,8 +77,8 @@ def test_buy_tokens_missing_tokens(client, monkeypatch):
 
 def test_redeem_tokens_success(client, monkeypatch):
     _ok_auth(monkeypatch, user_id="u1")
-    account_chain = QueryChain({"account_id": "a1", "account_name": "Main", "created_by": "u1"})
-    balance_chain = QueryChain({"balance": 20})
+    account_chain = QueryChain([{"account_id": "a1", "account_name": "Main", "created_by": "u1"}])
+    balance_chain = QueryChain([{"balance": 20}])
     write_chain = QueryChain()
     def table(name):
         if name == "accounts": return account_chain
@@ -92,8 +92,8 @@ def test_redeem_tokens_success(client, monkeypatch):
 
 def test_redeem_tokens_insufficient_balance(client, monkeypatch):
     _ok_auth(monkeypatch, user_id="u1")
-    account_chain = QueryChain({"account_id": "a1", "account_name": "Main", "created_by": "u1"})
-    balance_chain = QueryChain({"balance": 2})
+    account_chain = QueryChain([{"account_id": "a1", "account_name": "Main", "created_by": "u1"}])
+    balance_chain = QueryChain([{"balance": 2}])
     def table(name):
         return account_chain if name == "accounts" else balance_chain
     monkeypatch.setattr(tokens_routes, "service_client", lambda: SimpleNamespace(table=table))
