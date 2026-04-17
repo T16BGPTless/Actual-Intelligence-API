@@ -8,6 +8,7 @@ def _patch_auth(monkeypatch):
     monkeypatch.setattr(req_routes, "require_access_token", lambda: ("tok", None))
     monkeypatch.setattr(req_routes, "require_supabase_user", lambda t: (SimpleNamespace(id="user-1"), None))
     monkeypatch.setattr(req_routes, "user_client", lambda *a: SimpleNamespace())
+    monkeypatch.setattr(req_routes, "service_client", lambda *a: SimpleNamespace())
 
 def test_create_chat_missing_fields(client, monkeypatch):
     _patch_auth(monkeypatch)

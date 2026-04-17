@@ -14,6 +14,19 @@ def test_browse_chats(client, monkeypatch):
     class FakeQ:
         def select(self, *a): return self
         def eq(self, *a): return self
+        def neq(self, *a): return self
+        def order(self, *a, **k): return self
+        def execute(self): return SimpleNamespace(data=[{"chat_id": "2", "status": "open"}])
+    monkeypatch.setattr(res_routes, "user_client", lambda *a: SimpleNamespace(table=lambda *a: FakeQ()))
+    resp = client.get("/v1/responder/chats/unclaimed")
+    assert resp.status_code == 200
+
+def test_claimed_chats(client, monkeypatch):
+    _patch_auth(monkeypatch)
+    class FakeQ:
+        def select(self, *a): return self
+        def eq(self, *a): return self
+        def neq(self, *a): return self
         def order(self, *a, **k): return self
         def execute(self): return SimpleNamespace(data=[{"chat_id": "2", "status": "open"}])
     monkeypatch.setattr(res_routes, "user_client", lambda *a: SimpleNamespace(table=lambda *a: FakeQ()))

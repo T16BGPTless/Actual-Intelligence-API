@@ -120,11 +120,12 @@ def post_message(chat_id):
             
         client.table("messages").insert({
             "chat_id": chat_id,
+            "sender_id": str(user.id),
             "sender_type": "requester",
             "message": msg_text,
             "tokens": tokens
         }).execute()
-    except APIError:
+    except APIError as e:
         return return_error("INTERNAL_SERVER_ERROR")
     
     return jsonify({
