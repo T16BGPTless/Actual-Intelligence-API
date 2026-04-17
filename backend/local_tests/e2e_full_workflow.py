@@ -3,7 +3,7 @@ import sys
 import uuid
 import time
 
-BASE_URL = "http://127.0.0.1:5003"
+BASE_URL = "http://127.0.0.1:5001"
 
 def p(msg):
     print(f"\n====================================")
