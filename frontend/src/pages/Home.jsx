@@ -114,11 +114,12 @@ export default function Home() {
     flex: 1,
     transition: 'all 0.4s cubic-bezier(0.165, 0.84, 0.44, 1)',
     position: 'relative',
+    bgcolor: isDefault ? '#f5f5f5' : theme.palette.background.paper,
     '&:hover': {
-      bgcolor: theme.palette.background.paper,
+      bgcolor: isDefault ? '#ffffff' : theme.palette.background.paper,
       zIndex: 10,
       transform: 'scale(1.03)',
-      boxShadow: `0 20px 60px ${theme.palette.primary.main}33`,
+      boxShadow: `0 20px 60px ${isDefault ? 'rgba(0,0,0,0.15)' : theme.palette.primary.main + '33'}`,
     }
   };
 
@@ -204,7 +205,7 @@ export default function Home() {
       <ScrollSection index={1}>
         {!isAuthenticated ? (
           <Box sx={{ display: 'flex', flexDirection: { xs: 'column', md: 'row' }, border: `3px solid ${theme.palette.text.primary}`, mb: 10, bgcolor: theme.palette.background.paper }}>
-            <Box sx={{ ...subSectionStyle, p: 4, textAlign: 'left', bgcolor: 'rgba(0,0,0,0.02)', borderRight: { md: `3px solid ${theme.palette.text.primary}` } }}>
+            <Box sx={{ ...subSectionStyle, p: 4, textAlign: 'left', borderRight: { md: `3px solid ${theme.palette.text.primary}` } }}>
                 <Typography variant="overline" sx={{ fontWeight: 900, color: theme.palette.text.disabled }}>01 // The Mission</Typography>
                 <Typography variant="h5" sx={{ fontWeight: 900, mb: 2, mt: 1 }}>DECENTRALIZING COGNITION</Typography>
                 <Typography variant="body2" sx={{ color: theme.palette.text.primary, lineHeight: 1.8 }}>
@@ -274,7 +275,7 @@ export default function Home() {
       <ScrollSection index={2}>
         <Box sx={{ display: 'flex', flexDirection: { xs: 'column', md: 'row' }, borderTop: `3px solid ${theme.palette.text.primary}`, borderBottom: `3px solid ${theme.palette.text.primary}`, bgcolor: theme.palette.background.default, mb: 8, overflow: 'visible' }}>
           
-          <Box sx={{ ...subSectionStyle, p: { xs: 4, md: 8 }, display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center' }}>
+          <Box sx={{ ...subSectionStyle, p: { xs: 4, md: 8 }, display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', borderRight: { md: `3px solid ${theme.palette.text.primary}` } }}>
             <Typography variant="h4" sx={{ fontWeight: 900, mb: 2 }}>{isAuthenticated ? 'REQUESTER' : 'LOGIN'}</Typography>
             <Typography variant="body2" sx={{ mb: 4, color: theme.palette.text.secondary, maxWidth: "320px", lineHeight: 1.8 }}>
               {isAuthenticated ? "Deploy tasks to our global network of specialists." : "Securely re-authenticate your session."}
@@ -283,9 +284,8 @@ export default function Home() {
               {isAuthenticated ? 'Create Chat' : 'Log In'}
             </Button>
           </Box>
-
-          <Divider orientation="vertical" flexItem sx={{ borderRightWidth: 3, borderColor: theme.palette.text.primary, display: { xs: 'none', md: 'block' }, zIndex: 11 }} />
           
+          {/* Responder / Register Sub-Section */}
           <Box sx={{ ...subSectionStyle, p: { xs: 4, md: 8 }, display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center' }}>
             <Typography variant="h4" sx={{ fontWeight: 900, mb: 2 }}>{isAuthenticated ? 'RESPONDER' : 'REGISTER'}</Typography>
             <Typography variant="body2" sx={{ mb: 4, color: theme.palette.text.secondary, maxWidth: "320px", lineHeight: 1.8 }}>

@@ -11,7 +11,8 @@ import {
   Typography,
   Divider,
   InputAdornment,
-  IconButton
+  IconButton,
+  useTheme
 } from "@mui/material";
 
 // Icons
@@ -22,6 +23,8 @@ const BACKEND_URL = "http://localhost:5000";
 
 function Login() {
   const navigate = useNavigate();
+  const theme = useTheme();
+  const isDarkMode = theme.palette.mode === 'dark';
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -49,7 +52,6 @@ function Login() {
 
     try {
       const res = await axios.post(`${BACKEND_URL}/v1/auth/login`, { email, password });
-      
       const { accessToken, user } = res.data;
 
       localStorage.setItem("token", accessToken);
@@ -58,7 +60,6 @@ function Login() {
       localStorage.setItem("email", user.email);
 
       navigate("/");
-      
     } catch (err) {
       const msg = err.response?.data?.message || "Login failed";
       const lowerMsg = msg.toLowerCase();
@@ -80,11 +81,17 @@ function Login() {
     position: 'relative',
     '& .MuiOutlinedInput-root': {
       borderRadius: '0px',
-      backgroundColor: '#ffffff',
-      '& fieldset': { borderWidth: '2px', borderColor: '#eee' },
-      '&:hover fieldset': { borderColor: '#bbb' },
-      '&.Mui-focused fieldset': { borderColor: 'black', borderWidth: '2px' },
-      '&.Mui-error fieldset': { borderColor: '#ff1744' },
+      backgroundColor: theme.palette.background.paper,
+      '& fieldset': { 
+        borderWidth: '2px', 
+        borderColor: isDarkMode ? 'rgba(255,255,255,0.1)' : '#eee' 
+      },
+      '&:hover fieldset': { borderColor: theme.palette.primary.main },
+      '&.Mui-focused fieldset': { 
+        borderColor: theme.palette.text.primary, 
+        borderWidth: '2px' 
+      },
+      '&.Mui-error fieldset': { borderColor: theme.palette.error.main },
     },
     '& .MuiFormHelperText-root': {
       position: { md: 'absolute' },
@@ -96,7 +103,7 @@ function Login() {
       fontWeight: 800,
       textTransform: 'uppercase',
       fontSize: '0.7rem',
-      color: '#ff1744 !important',
+      color: `${theme.palette.error.main} !important`,
     }
   };
 
@@ -107,15 +114,15 @@ function Login() {
     fontSize: '0.9rem',
     fontWeight: 900,
     letterSpacing: '1px',
-    bgcolor: isPrimary ? 'black' : 'transparent',
-    color: isPrimary ? 'white' : 'black',
-    border: '2px solid black',
+    bgcolor: isPrimary ? theme.palette.text.primary : 'transparent',
+    color: isPrimary ? theme.palette.background.default : theme.palette.text.primary,
+    border: `2px solid ${theme.palette.text.primary}`,
     transition: 'all 0.2s ease',
     '&:hover': {
-      bgcolor: isPrimary ? '#333' : 'black',
-      color: 'white',
+      bgcolor: isPrimary ? theme.palette.action.hover : theme.palette.text.primary,
+      color: theme.palette.background.default,
       transform: 'translateY(-2px)',
-      boxShadow: '4px 4px 0px rgba(0,0,0,0.1)',
+      boxShadow: `4px 4px 0px ${isDarkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'}`,
     }
   });
 
@@ -130,11 +137,22 @@ function Login() {
     <Container maxWidth="xs" sx={{ overflow: 'visible' }}>
       <Box sx={{ mt: 12, display: 'flex', flexDirection: 'column', alignItems: 'center', pb: 4 }}>
         
-        <Typography variant="h4" sx={{ fontWeight: 900, mb: 1, textTransform: 'uppercase', letterSpacing: '-1px', ...fadeSlide(0) }}>
+        <Typography 
+          variant="h4" 
+          sx={{ 
+            fontWeight: 900, 
+            mb: 1, 
+            textTransform: 'uppercase', 
+            letterSpacing: '-1px', 
+            color: theme.palette.text.primary,
+            textShadow: isDarkMode ? `0 0 15px ${theme.palette.primary.main}44` : 'none',
+            ...fadeSlide(0) 
+          }}
+        >
           Login
         </Typography>
 
-        <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 4, color: '#666', ...fadeSlide(50) }}>
+        <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 4, color: theme.palette.text.secondary, ...fadeSlide(50) }}>
           Access your professional identity
         </Typography>
 
@@ -151,6 +169,7 @@ function Login() {
             error={!!errors.email}
             helperText={errors.email}
             sx={{ ...inputStyles, ...fadeSlide(150) }}
+            inputProps={{ style: { fontWeight: 700, textTransform: 'uppercase', letterSpacing: '1px' }}}
           />
 
           <TextField
@@ -173,7 +192,7 @@ function Login() {
                       aria-label="toggle password visibility"
                       onClick={handleClickShowPassword}
                       edge="end"
-                      sx={{ color: 'black' }}
+                      sx={{ color: theme.palette.text.primary }}
                     >
                       {showPassword ? <VisibilityOff /> : <Visibility />}
                     </IconButton>
@@ -184,7 +203,7 @@ function Login() {
           />
 
           {errors.general && (
-            <Typography variant="caption" sx={{ color: '#ff1744', fontWeight: 900, mb: 2, display: 'block', textAlign: 'center', textTransform: 'uppercase' }}>
+            <Typography variant="caption" sx={{ color: theme.palette.error.main, fontWeight: 900, mb: 2, display: 'block', textAlign: 'center', textTransform: 'uppercase' }}>
               {errors.general}
             </Typography>
           )}
@@ -193,7 +212,16 @@ function Login() {
             Log In
           </Button>
 
-          <Divider sx={{ my: 4, fontWeight: 800, textTransform: 'uppercase', ...fadeSlide(300) }}>or</Divider>
+          <Divider sx={{ 
+            my: 4, 
+            fontWeight: 800, 
+            textTransform: 'uppercase', 
+            color: theme.palette.text.disabled,
+            '&::before, &::after': { borderColor: theme.palette.divider },
+            ...fadeSlide(300) 
+          }}>
+            or
+          </Divider>
 
           <Button variant="outlined" fullWidth onClick={() => navigate("/register")} disableElevation sx={{ ...actionButtonStyle(false), ...fadeSlide(350) }}>
             Create Account
