@@ -53,6 +53,7 @@ function Register() {
   const handleDebugBypass = () => {
     const debugToken = `debug_session_${Math.random().toString(36).substr(2, 9)}`;
     localStorage.setItem('token', debugToken);
+    localStorage.setItem('username', 'Debug_Cat');
     localStorage.setItem('email', 'debug_user@local.test');
     
     console.warn("DEBUG: Bypass triggered. Session ID injected into LocalStorage.");
@@ -85,13 +86,22 @@ function Register() {
         username: formData.username,
       });
 
-      localStorage.setItem('token', res.data.accessToken);
-      localStorage.setItem('email', formData.email);
+      const { accessToken, user } = res.data;
+
+      localStorage.setItem('token', accessToken);
+      localStorage.setItem('username', user.username);
+      localStorage.setItem('email', user.email);
+      localStorage.setItem('name', user.name);
+
       navigate('/');
     } catch (err) {
       const msg = err.response?.data?.message || err.response?.data?.error || 'Registration failed';
-      if (msg.toLowerCase().includes("email")) {
+      const lowerMsg = msg.toLowerCase();
+      
+      if (lowerMsg.includes("email")) {
         setErrors({ email: msg });
+      } else if (lowerMsg.includes("username")) {
+        setErrors({ username: msg });
       } else {
         setErrors({ general: msg });
       }
@@ -238,7 +248,7 @@ function Register() {
           />
 
           {errors.general && (
-            <Typography variant="caption" sx={{ color: '#ff1744', fontWeight: 900, mb: 2, display: 'block', textAlign: 'center' }}>
+            <Typography variant="caption" sx={{ color: '#ff1744', fontWeight: 900, mb: 2, display: 'block', textAlign: 'center', textTransform: 'uppercase' }}>
               {errors.general}
             </Typography>
           )}

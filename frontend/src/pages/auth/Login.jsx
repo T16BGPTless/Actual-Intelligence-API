@@ -49,14 +49,23 @@ function Login() {
 
     try {
       const res = await axios.post(`${BACKEND_URL}/v1/auth/login`, { email, password });
-      localStorage.setItem("token", res.data.accessToken);
-      localStorage.setItem("email", email);
+      
+      const { accessToken, user } = res.data;
+
+      localStorage.setItem("token", accessToken);
+      localStorage.setItem("username", user.username);
+      localStorage.setItem("name", user.name);
+      localStorage.setItem("email", user.email);
+
       navigate("/");
+      
     } catch (err) {
       const msg = err.response?.data?.message || "Login failed";
-      if (msg.toLowerCase().includes("user") || msg.toLowerCase().includes("email")) {
+      const lowerMsg = msg.toLowerCase();
+
+      if (lowerMsg.includes("user") || lowerMsg.includes("email")) {
         setErrors({ email: msg });
-      } else if (msg.toLowerCase().includes("password")) {
+      } else if (lowerMsg.includes("password")) {
         setErrors({ password: msg });
       } else {
         setErrors({ general: msg });
@@ -65,8 +74,6 @@ function Login() {
   };
 
   const handleClickShowPassword = () => setShowPassword((show) => !show);
-  const handleMouseDownPassword = (event) => event.preventDefault();
-  const handleMouseUpPassword = (event) => event.preventDefault();
 
   const inputStyles = {
     mb: 2,
@@ -128,7 +135,7 @@ function Login() {
         </Typography>
 
         <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 4, color: '#666', ...fadeSlide(50) }}>
-          Log in to your account
+          Access your professional identity
         </Typography>
 
         <Box component="form" onSubmit={handleLogin} sx={{ width: '100%' }}>
@@ -163,10 +170,8 @@ function Login() {
                 endAdornment: (
                   <InputAdornment position="end">
                     <IconButton
-                      aria-label={showPassword ? 'hide the password' : 'display the password'}
+                      aria-label="toggle password visibility"
                       onClick={handleClickShowPassword}
-                      onMouseDown={handleMouseDownPassword}
-                      onMouseUp={handleMouseUpPassword}
                       edge="end"
                       sx={{ color: 'black' }}
                     >
