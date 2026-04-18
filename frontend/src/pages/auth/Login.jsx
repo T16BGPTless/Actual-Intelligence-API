@@ -26,7 +26,7 @@ function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [errors, setErrors] = useState({}); // Field-specific errors
+  const [errors, setErrors] = useState({});
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
@@ -38,7 +38,6 @@ function Login() {
     e.preventDefault();
     setErrors({});
 
-    // Local validation check
     let tempErrors = {};
     if (!email) tempErrors.email = "Email is required";
     if (!password) tempErrors.password = "Password is required";
@@ -55,7 +54,6 @@ function Login() {
       navigate("/");
     } catch (err) {
       const msg = err.response?.data?.message || "Login failed";
-      // Point general auth failures (invalid creds) to both or specific fields
       if (msg.toLowerCase().includes("user") || msg.toLowerCase().includes("email")) {
         setErrors({ email: msg });
       } else if (msg.toLowerCase().includes("password")) {
@@ -79,10 +77,8 @@ function Login() {
       '& fieldset': { borderWidth: '2px', borderColor: '#eee' },
       '&:hover fieldset': { borderColor: '#bbb' },
       '&.Mui-focused fieldset': { borderColor: 'black', borderWidth: '2px' },
-      // Red outline on error
       '&.Mui-error fieldset': { borderColor: '#ff1744' },
     },
-    // Error message "pointing" to the right
     '& .MuiFormHelperText-root': {
       position: { md: 'absolute' },
       left: { md: '100%' },
@@ -132,7 +128,7 @@ function Login() {
         </Typography>
 
         <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 4, color: '#666', ...fadeSlide(50) }}>
-          Sign in to your account
+          Log in to your account
         </Typography>
 
         <Box component="form" onSubmit={handleLogin} sx={{ width: '100%' }}>
@@ -189,7 +185,7 @@ function Login() {
           )}
 
           <Button variant="contained" fullWidth type="submit" disableElevation sx={{ ...actionButtonStyle(true), ...fadeSlide(250) }}>
-            Sign In
+            Log In
           </Button>
 
           <Divider sx={{ my: 4, fontWeight: 800, textTransform: 'uppercase', ...fadeSlide(300) }}>or</Divider>

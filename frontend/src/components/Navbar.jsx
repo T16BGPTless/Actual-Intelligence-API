@@ -1,4 +1,6 @@
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import axios from "axios";
 import { 
   AppBar, 
   Toolbar, 
@@ -14,10 +16,38 @@ import LoginIcon from '@mui/icons-material/Login';
 import PersonAddIcon from '@mui/icons-material/PersonAdd';
 import LogoutIcon from '@mui/icons-material/Logout';
 import TokenIcon from '@mui/icons-material/Token';
+import ForumIcon from '@mui/icons-material/Forum';
+import PsychologyIcon from '@mui/icons-material/Psychology';
+import AccountCircleIcon from '@mui/icons-material/AccountCircle';
+
+// Assets
+import catLogo from "../assets/cat1.png";
 
 function Navbar() {
   const navigate = useNavigate();
   const token = localStorage.getItem("token");
+  const email = localStorage.getItem("email"); 
+  const [balance, setBalance] = useState(0);
+
+  useEffect(() => {
+    const fetchBalance = async () => {
+      if (token) {
+        try {
+          const res = await axios.get(`http://localhost:5000/v1/tokens`, {
+            headers: { Authorization: `Bearer ${token}` },
+            params: { accountName: email } 
+          });
+          setBalance(res.data.tokenBalance);
+        } catch (err) {
+          console.error("Failed to fetch balance", err);
+        }
+      }
+    };
+
+    fetchBalance();
+    const interval = setInterval(fetchBalance, 30000);
+    return () => clearInterval(interval);
+  }, [token, email]);
 
   const logout = () => {
     localStorage.clear();
@@ -66,27 +96,39 @@ function Navbar() {
     ...underlineEffect
   };
 
-  const brandStyle = {
+  const brandContainerStyle = {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 1.5, 
     cursor: "pointer", 
+    position: 'relative',
+    px: 1,
+    py: 0.5,
+    transition: 'transform 0.3s ease',
+    '&:hover': {
+      transform: 'scale(1.02)', 
+    },
+    '&::after': {
+      content: '""',
+      position: 'absolute',
+      bottom: -2,
+      left: 0,
+      width: '0%',
+      height: '3px',
+      bgcolor: '#fff',
+      transition: 'width 0.3s ease-in-out',
+    },
+    '&:hover::after': {
+      width: '100%',
+    }
+  };
+
+  const brandTextStyle = {
     fontWeight: 900, 
     letterSpacing: '-1px',
     color: '#fff',
     textTransform: 'uppercase',
-    position: 'relative',
-    transition: 'all 0.3s ease',
     display: 'inline-block',
-    px: 1,
-    py: 0.5,
-    '&:hover': {
-      transform: 'scale(1.05)',
-      color: '#fff',
-    },
-    ...underlineEffect,
-    '&::after': {
-        ...underlineEffect['&::after'],
-        height: '3px',
-        bottom: -2
-    }
   };
 
   return (
@@ -99,15 +141,28 @@ function Navbar() {
         zIndex: (theme) => theme.zIndex.drawer + 1
       }}
     >
-      <Container maxWidth="lg">
+      <Container maxWidth="lg" sx={{ height: '100%' }}>
         <Toolbar disableGutters sx={{ justifyContent: 'space-between', height: '64px' }}>
           
-          <Box onClick={() => navigate("/")} sx={{ display: 'flex', alignItems: 'center' }}>
-            <Typography variant="h6" sx={brandStyle}>
-              Actual Intelligence
+          {/* Brand/Logo Section */}
+          <Box onClick={() => navigate("/")} sx={brandContainerStyle}>
+            <Box 
+              component="img"
+              src={catLogo}
+              alt="AI Logo"
+              sx={{
+                height: '32px', 
+                width: 'auto',
+                display: 'block',
+                filter: 'invert(1) brightness(1.2)'
+              }}
+            />
+            <Typography variant="h6" sx={brandTextStyle}>
+              <span style={{ color: '#666' }}>Actual</span> Intelligence
             </Typography>
           </Box>
 
+          {/* Nav Links Section */}
           <Box sx={{ 
             display: 'flex', 
             alignItems: 'stretch',
@@ -137,11 +192,51 @@ function Navbar() {
             ) : (
               <>
                 <Button
-                  startIcon={<TokenIcon />}
+                  startIcon={<ForumIcon />}
                   sx={navButtonStyle}
+                  onClick={() => navigate("/chat/new")}
+                >
+                  My Chats
+                </Button>
+
+                <Divider orientation="vertical" flexItem sx={{ bgcolor: '#333', width: '1px', my: 2 }} />
+
+                <Button
+                  startIcon={<PsychologyIcon />}
+                  sx={navButtonStyle}
+                  onClick={() => navigate("/tasks/claim")}
+                >
+                  Task List
+                </Button>
+
+                <Divider orientation="vertical" flexItem sx={{ bgcolor: '#333', width: '1px', my: 2 }} />
+
+                <Button
+                  startIcon={<AccountCircleIcon />}
+                  sx={navButtonStyle}
+                  onClick={() => navigate("/profile")}
+                >
+                  Profile
+                </Button>
+
+                <Divider orientation="vertical" flexItem sx={{ bgcolor: '#333', width: '1px', my: 2 }} />
+
+                <Button
+                  startIcon={<TokenIcon sx={{ color: '#FFD700' }} />}
+                  sx={{ 
+                    ...navButtonStyle, 
+                    color: '#FFD700', 
+                    fontWeight: 800,
+                    '&::after': { ...underlineEffect['&::after'], bgcolor: '#FFD700' },
+                    '&:hover': { 
+                      ...navButtonStyle['&:hover'],
+                      color: '#FFF176', 
+                      bgcolor: '#1a1a00',
+                    } 
+                  }}
                   onClick={() => navigate("/tokens")}
                 >
-                  Token
+                  {balance} ◈
                 </Button>
 
                 <Divider orientation="vertical" flexItem sx={{ bgcolor: '#333', width: '1px', my: 2 }} />
@@ -152,7 +247,11 @@ function Navbar() {
                     ...navButtonStyle, 
                     color: '#ff5252', 
                     '&::after': { ...underlineEffect['&::after'], bgcolor: '#ff5252' },
-                    '&:hover': { color: '#ff1744', bgcolor: '#1a0000' } 
+                    '&:hover': { 
+                      ...navButtonStyle['&:hover'],
+                      color: '#ff1744', 
+                      bgcolor: '#1a0000',
+                    } 
                   }}
                   onClick={logout}
                 >

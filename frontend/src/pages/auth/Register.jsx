@@ -51,7 +51,6 @@ function Register() {
 
   // DEBUG BYPASS HANDLER
   const handleDebugBypass = () => {
-    // Manually set local storage to mimic a successful login
     const debugToken = `debug_session_${Math.random().toString(36).substr(2, 9)}`;
     localStorage.setItem('token', debugToken);
     localStorage.setItem('email', 'debug_user@local.test');
@@ -250,7 +249,6 @@ function Register() {
 
           <Divider sx={{ my: 4, fontWeight: 800, textTransform: 'uppercase', ...fadeSlide(450) }}>or</Divider>
 
-          {/* Action Row for Login and Debug Bypass */}
           <Box sx={{ display: 'flex', gap: 2, ...fadeSlide(500) }}>
             <Button 
               variant="outlined" 

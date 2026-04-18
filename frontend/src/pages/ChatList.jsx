@@ -1,13 +1,13 @@
 import { Box, Typography } from "@mui/material";
 
-function TaskList() {
+function ChatList() {
   return (
     <Box>
       <Typography variant="h5">
-        Task List Page (placeholder)
+        Chat List (placeholder)
       </Typography>
     </Box>
   );
 }
 
-export default TaskList;
+export default ChatList;
