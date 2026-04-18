@@ -41,7 +41,6 @@ function App() {
         background: { default: active.bg, paper: isFluffy ? "#fff" : active.bg },
         text: { primary: active.text }
       },
-      // Universal straight corners
       shape: { borderRadius: 0 }, 
       typography: { 
         fontFamily: themeMode === 'matrix' ? "'Courier New', monospace" : "'Inter', sans-serif",

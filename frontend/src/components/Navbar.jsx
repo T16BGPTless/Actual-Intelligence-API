@@ -35,11 +35,20 @@ function Navbar() {
   const email = localStorage.getItem("email"); 
   const [balance, setBalance] = useState(0);
 
+  // Theme Detection
   const currentThemeId = localStorage.getItem("ui-theme") || "default";
   const isDefault = currentThemeId === 'default';
+  const isCyber = currentThemeId === 'matrix';
+  const isBlood = currentThemeId === 'blood';
+  const isRetro = currentThemeId === 'vibe';
   const isDarkMode = theme.palette.mode === 'dark';
 
-  const navBg = isDefault ? "#000" : (isDarkMode ? "#000" : theme.palette.primary.main);
+  let navBg = isDarkMode ? "#000" : theme.palette.primary.main;
+  
+  if (isDefault) navBg = "#000";
+  if (isBlood)   navBg = "#1a0000";
+  if (isRetro)   navBg = "#0f0f1e";
+
   const navTextColor = "#fff"; 
   const borderColor = isDefault ? "#333" : "rgba(255,255,255,0.2)";
 
@@ -166,7 +175,7 @@ function Navbar() {
                 height: '40px',
                 width: 'auto',
                 display: 'block',
-                filter: 'invert(1) brightness(1.2)'
+                filter: isCyber ? 'none' : 'invert(1) brightness(1.2)'
               }}
             />
             <Typography variant="h5" sx={{ fontWeight: 900, letterSpacing: '-1px', color: navTextColor, textTransform: 'uppercase' }}>

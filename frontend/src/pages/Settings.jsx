@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { 
   Box, Container, Typography, Divider, MenuItem, TextField, Button, Fade, Grid, useTheme
 } from "@mui/material";
@@ -110,6 +110,17 @@ export default function Settings({ setTextScale, setThemeMode }) {
     },
   });
 
+  const feedbackTextStyle = (isReset) => ({
+    fontWeight: 900, 
+    color: isReset ? theme.palette.text.secondary : theme.palette.primary.main, 
+    textAlign: 'right',
+    textTransform: 'uppercase',
+    letterSpacing: '2px',
+    textShadow: (!isReset && (theme.palette.primary.main === '#00ff41' || theme.palette.primary.main === '#ff5252')) 
+        ? `0 0 10px ${theme.palette.primary.main}aa` 
+        : 'none'
+  });
+
   return (
     <Container maxWidth="lg" sx={{ minHeight: "100vh", py: 8 }}>
       
@@ -170,8 +181,12 @@ export default function Settings({ setTextScale, setThemeMode }) {
           </Box>
         </Box>
         <Box sx={{ height: '50px', mt: 1 }}>
-          <Fade in={scaleFeedback === 'save'}><Typography sx={{ fontWeight: 900, color: '#00e5ff', textAlign: 'right' }}>[ SYSTEM RE-CALIBRATED ]</Typography></Fade>
-          <Fade in={scaleFeedback === 'reset'}><Typography sx={{ fontWeight: 900, color: theme.palette.text.secondary, textAlign: 'right' }}>[ SCALING RESTORED ]</Typography></Fade>
+          <Fade in={scaleFeedback === 'save'}>
+            <Typography sx={feedbackTextStyle(false)}>[ SYSTEM RE-CALIBRATED ]</Typography>
+          </Fade>
+          <Fade in={scaleFeedback === 'reset'}>
+            <Typography sx={feedbackTextStyle(true)}>[ SCALING RESTORED ]</Typography>
+          </Fade>
         </Box>
       </ScrollSection>
 
@@ -233,8 +248,12 @@ export default function Settings({ setTextScale, setThemeMode }) {
           </Box>
         </Box>
         <Box sx={{ height: '50px', mt: 1 }}>
-          <Fade in={themeFeedback === 'save'}><Typography sx={{ fontWeight: 900, color: '#00ff41', textAlign: 'right' }}>[ ENVIRONMENT UPDATED ]</Typography></Fade>
-          <Fade in={themeFeedback === 'reset'}><Typography sx={{ fontWeight: 900, color: theme.palette.text.secondary, textAlign: 'right' }}>[ THEME RESET ]</Typography></Fade>
+          <Fade in={themeFeedback === 'save'}>
+            <Typography sx={feedbackTextStyle(false)}>[ ENVIRONMENT UPDATED ]</Typography>
+          </Fade>
+          <Fade in={themeFeedback === 'reset'}>
+            <Typography sx={feedbackTextStyle(true)}>[ THEME RESET ]</Typography>
+          </Fade>
         </Box>
       </ScrollSection>
     </Container>
