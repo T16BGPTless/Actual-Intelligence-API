@@ -34,6 +34,8 @@ function Navbar() {
   const token = localStorage.getItem("token");
   const email = localStorage.getItem("email"); 
   const [balance, setBalance] = useState(0);
+  
+  const [animationsEnabled, setAnimationsEnabled] = useState(localStorage.getItem("ui-animations") !== "false");
 
   // Theme Detection
   const currentThemeId = localStorage.getItem("ui-theme") || "default";
@@ -41,7 +43,17 @@ function Navbar() {
   const isCyber = currentThemeId === 'matrix';
   const isBlood = currentThemeId === 'blood';
   const isRetro = currentThemeId === 'vibe';
+  const isWarm = currentThemeId === 'warm';
   const isDarkMode = theme.palette.mode === 'dark';
+
+  const getLogoutColor = () => {
+    if (isDarkMode) return '#ff5252';
+    if (isCyber) return '#003b00';
+    if (isWarm) return '#5d4037';
+    return '#ff5252';
+  };
+
+  const logoutColor = getLogoutColor();
 
   let navBg = isDarkMode ? "#000" : theme.palette.primary.main;
   
@@ -55,6 +67,10 @@ function Navbar() {
   const isActive = (path) => location.pathname === path;
 
   useEffect(() => {
+    const handleSync = () => {
+      setAnimationsEnabled(localStorage.getItem("ui-animations") !== "false");
+    };
+
     const fetchBalance = async () => {
       if (token) {
         try {
@@ -70,8 +86,13 @@ function Navbar() {
     };
 
     fetchBalance();
+    window.addEventListener("storage", handleSync);
     const interval = setInterval(fetchBalance, 30000);
-    return () => clearInterval(interval);
+    
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener("storage", handleSync);
+    };
   }, [token, email]);
 
   const logout = () => {
@@ -88,7 +109,7 @@ function Navbar() {
       width: active ? '100%' : '0%',
       height: '3px',
       bgcolor: color,
-      transition: 'width 0.3s ease-in-out',
+      transition: animationsEnabled ? 'width 0.3s ease-in-out' : 'none',
     },
     '&:hover::after': {
       width: '100%',
@@ -102,29 +123,28 @@ function Navbar() {
       textTransform: 'none',
       borderRadius: 0, 
       fontWeight: active ? 800 : 600,
-      px: active ? 5 : 4, 
-      minWidth: active ? '100px' : '90px', 
+      px: animationsEnabled ? (active ? 5 : 4) : 4, 
+      minWidth: animationsEnabled ? (active ? '100px' : '90px') : '100px', 
       py: 2,
       color: active ? '#fff' : customColor,
       bgcolor: active ? activeBg : 'transparent',
       display: 'flex',
       gap: 1.5,
       height: '100%',
-      transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+      transition: animationsEnabled ? 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)' : 'none',
       position: 'relative',
-      fontSize: active ? '1.1rem' : '1rem',
+      fontSize: animationsEnabled ? (active ? '1.1rem' : '1rem') : '1rem',
       '& .MuiButton-startIcon': {
-        transition: 'transform 0.3s ease',
-        transform: active ? 'scale(1.3)' : 'scale(1)',
+        transition: animationsEnabled ? 'transform 0.3s ease' : 'none',
+        transform: (animationsEnabled && active) ? 'scale(1.3)' : 'scale(1)',
       },
       '&:hover': {
         bgcolor: activeBg,
         color: '#fff',
-        px: !active ? 5 : undefined,
-        minWidth: !active ? '100px' : undefined,
-        fontSize: !active ? '1.1rem' : undefined,
+        px: (animationsEnabled && !active) ? 5 : undefined,
+        fontSize: (animationsEnabled && !active) ? '1.1rem' : undefined,
         '& .MuiButton-startIcon': {
-          transform: 'scale(1.3)', 
+          transform: animationsEnabled ? 'scale(1.3)' : 'none', 
         },
       },
       ...underlineEffect(active, active ? '#fff' : customColor)
@@ -149,7 +169,7 @@ function Navbar() {
         bgcolor: navBg,
         borderBottom: `1px solid ${borderColor}`,
         zIndex: (theme) => theme.zIndex.drawer + 1,
-        transition: 'background-color 0.4s ease'
+        transition: animationsEnabled ? 'background-color 0.4s ease' : 'none'
       }}
     >
       <Container maxWidth={false} sx={{ height: '100%', px: { xs: 2, md: 4 } }}>
@@ -163,8 +183,8 @@ function Navbar() {
               position: 'relative',
               px: 2,
               py: 1,
-              transition: 'transform 0.3s ease',
-              '&:hover': { transform: 'scale(1.05)' },
+              transition: animationsEnabled ? 'transform 0.3s ease' : 'none',
+              '&:hover': { transform: animationsEnabled ? 'scale(1.05)' : 'none' },
               ...underlineEffect(isActive("/"))
           }}>
             <Box 
@@ -232,7 +252,7 @@ function Navbar() {
 
                 <Button
                   startIcon={<LogoutIcon />}
-                  sx={getNavButtonStyle(null, '#ff5252', 'rgba(255, 82, 82, 0.15)')}
+                  sx={getNavButtonStyle(null, logoutColor, `${logoutColor}26`)}
                   onClick={logout}
                 >
                   Logout
