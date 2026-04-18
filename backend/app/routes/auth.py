@@ -13,7 +13,6 @@ from app.routes.helpers import require_access_token, require_supabase_user, retu
 from app.supabase_client import anon_client, service_client, user_client
 
 auth_bp = Blueprint("auth", __name__)
-ACTIVE_ROLES = {"requester", "responder"}
 
 
 def _missing_field_error(scope: str, field: str):
@@ -87,32 +86,6 @@ def _user_payload(access_token: str, user) -> dict:
         "lastOnline": last_online,
     }
 
-
-def _get_active_role(user_id: str) -> str:
-    rows = (
-        service_client()
-        .table("user_roles")
-        .select("role")
-        .eq("user_id", user_id)
-        .in_("role", list(ACTIVE_ROLES))
-        .execute()
-        .data
-        or []
-    )
-    role_set = {r.get("role") for r in rows if r.get("role")}
-    if "responder" in role_set:
-        return "responder"
-    return "requester"
-
-
-def _set_active_role(user_id: str, role: str) -> None:
-    client = service_client()
-    client.table("user_roles").delete().eq("user_id", user_id).in_(
-        "role", list(ACTIVE_ROLES)
-    ).execute()
-    client.table("user_roles").insert({"user_id": user_id, "role": role}).execute()
-
-
 @auth_bp.route("/v1/auth/register", methods=["POST"])
 def register():
     body = request.get_json(silent=True) or {}
@@ -147,7 +120,7 @@ def register():
         return return_error("BAD_REQUEST", e.message or "Registration failed")
 
     signin_fallback_error = return_error(
-        "FORBIDDEN",
+        "INTERNAL_SERVER_ERROR",
         "Registration succeeded but automatic sign-in failed.",
     )
     if not auth_response.session:
@@ -226,42 +199,3 @@ def get_me():
     return jsonify(_user_payload(access_token, user)), HTTPStatus.OK
 
 
-@auth_bp.route("/v1/auth/role", methods=["GET"])
-def get_role():
-    access_token, error = require_access_token()
-    if error:
-        return return_error("UNAUTHORIZED", "Missing or invalid bearer token")
-
-    user, error = require_supabase_user(access_token)
-    if error:
-        return return_error("UNAUTHORIZED", "Missing or invalid bearer token")
-
-    try:
-        role = _get_active_role(str(user.id))
-    except APIError:
-        return return_error("INTERNAL_SERVER_ERROR")
-
-    return jsonify({"role": role}), HTTPStatus.OK
-
-
-@auth_bp.route("/v1/auth/role", methods=["PUT"])
-def update_role():
-    access_token, error = require_access_token()
-    if error:
-        return return_error("UNAUTHORIZED", "Missing or invalid bearer token")
-
-    user, error = require_supabase_user(access_token)
-    if error:
-        return return_error("UNAUTHORIZED", "Missing or invalid bearer token")
-
-    body = request.get_json(silent=True) or {}
-    role = body.get("role")
-    if role not in ACTIVE_ROLES:
-        return return_error("BAD_REQUEST", "Missing or invalid role data: invalid role")
-
-    try:
-        _set_active_role(str(user.id), role)
-    except APIError:
-        return return_error("INTERNAL_SERVER_ERROR")
-
-    return jsonify({"role": role}), HTTPStatus.OK

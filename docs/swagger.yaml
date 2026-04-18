@@ -134,13 +134,15 @@ paths:
                   $ref: "#/components/schemas/ChatSummary"
               example:
                 - chatID: 12345
-                  title: website design
+                  title: My Cool Website
+                  originalRequest: Create a website for my online store.
                   category: development
                   status: open
                   tokens: 30
                   createdAt: "2025-08-14T10:30:00Z"
                 - chatID: 54321
-                  title: poem request
+                  title: Poem About The Sea
+                  originalRequest: Write me a poem about the sea.
                   category: writing
                   status: closed
                   tokens: 40
@@ -278,7 +280,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/MessageRequest"
+              $ref: "#/components/schemas/RequesterMessageRequest"
 
       responses:
         "201":
@@ -371,140 +373,21 @@ paths:
                     error: INTERNAL_SERVER_ERROR
                     message: An internal server error occurred.
 
-  /v1/requester/chats/{chatID}/requests:
-    post:
-      tags: [Requester side]
-      summary: add a new request to an existing chat
-      description: |
-        Creates a new paid request in an existing chat using the previous message history and context.
-
-      parameters:
-        - $ref: "#/components/parameters/AccessToken"
-        - $ref: "#/components/parameters/ChatId"
-
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/NewRequestRequest"
-
-      responses:
-        "201":
-          description: |
-            **Created**
-            
-            Returns the newly created request.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Request"
-
-        "400":
-          description: |
-            **Bad Request**
-            
-            Missing or invalid request data
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
-              examples:
-                BAD_REQUEST:
-                  summary: BAD_REQUEST
-                  value:
-                    error: BAD_REQUEST
-                    message: "Missing or invalid request data: missing field: requestText"
-
-        "401":
-          description: |
-            **Unauthorized**
-            
-            Missing or invalid API token
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
-              examples:
-                UNAUTHORIZED:
-                  summary: UNAUTHORIZED
-                  value:
-                    error: UNAUTHORIZED
-                    message: The API token is missing or invalid. If you do not have an API token register for one through the form on our website
-
-        "402":
-          description: |
-            **Payment Required**
-            
-            You do not have enough tokens to create a new request.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
-              examples:
-                PAYMENT_REQUIRED:
-                  summary: PAYMENT_REQUIRED
-                  value:
-                    error: PAYMENT_REQUIRED
-                    message: You do not have enough tokens to create a new request
-
-        "403":
-          description: |
-            **Forbidden**
-            
-            You do not have access to this chat.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
-              examples:
-                FORBIDDEN:
-                  summary: FORBIDDEN
-                  value:
-                    error: FORBIDDEN
-                    message: You do not have access to this content
-
-        "404":
-          description: |
-            **Not Found**
-            
-            ChatID does not exist.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
-              examples:
-                NOT_FOUND:
-                  summary: NOT_FOUND
-                  value:
-                    error: NOT_FOUND
-                    message: The requested resource was not found
-
-        "500":
-          description: |
-            **Internal Server Error**
-            
-            There was an internal server error. If this persists contact us at contact@gptless.au.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
-              examples:
-                INTERNAL_SERVER_ERROR:
-                  summary: INTERNAL_SERVER_ERROR
-                  value:
-                    error: INTERNAL_SERVER_ERROR
-                    message: An internal server error occurred.
-
-  /v1/requester/chats/{chatID}/close:
+  /v1/requester/chats/{chatID}/review:
     parameters:
       - $ref: "#/components/parameters/AccessToken"
       - $ref: "#/components/parameters/ChatId"
 
     post:
       tags: [Requester side]
-      summary: mark a chat as closed.
-      description: flags a chat as closed.
+      summary: review a chat and mark as closed.
+      description: reviews a chat, providing a rating and resolution status, and flags it as closed.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReviewChatRequest"
       responses:
         "200":
           description: |
@@ -609,13 +492,15 @@ paths:
                   $ref: "#/components/schemas/ChatSummary"
               example:
                 - chatID: 12345
-                  title: website design
+                  title: My Cool Website
+                  originalRequest: Create a website for my online store.
                   category: development
                   status: open
                   tokens: 30
                   createdAt: "2025-08-14T10:30:00Z"
                 - chatID: 54321
-                  title: poem request
+                  title: Poem About The Sea
+                  originalRequest: Write me a poem about the sea.
                   category: writing
                   status: closed
                   tokens: 40
@@ -688,13 +573,15 @@ paths:
                   $ref: "#/components/schemas/ChatSummary"
               example:
                 - chatID: 12345
-                  title: website design
+                  title: My Cool Website
+                  originalRequest: Create a website for my online store.
                   category: development
                   status: open
                   tokens: 30
                   createdAt: "2025-08-14T10:30:00Z"
                 - chatID: 54321
-                  title: poem request
+                  title: Poem About The Sea
+                  originalRequest: Write me a poem about the sea.
                   category: writing
                   status: closed
                   tokens: 40
@@ -825,6 +712,13 @@ paths:
       parameters:
         - $ref: "#/components/parameters/AccessToken"
         - $ref: "#/components/parameters/ChatId"
+        
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ClaimChatRequest"
 
       responses:
         "200":
@@ -841,7 +735,7 @@ paths:
           description: |
             **Bad Request**
             
-            Chat cannot be claimed.
+            Chat cannot be claimed or missing chat title.
           content:
             application/json:
               schema:
@@ -851,7 +745,7 @@ paths:
                   summary: BAD_REQUEST
                   value:
                     error: BAD_REQUEST
-                    message: Chat cannot be claimed
+                    message: "Missing or invalid claim data: missing field: title"
 
         "401":
           description: |
@@ -949,7 +843,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/MessageRequest"
+              $ref: "#/components/schemas/ResponderMessageRequest"
 
       responses:
         "201":
@@ -1042,50 +936,23 @@ paths:
                     error: INTERNAL_SERVER_ERROR
                     message: An internal server error occurred.
 
-  /v1/responder/chats/{chatID}/fulfill-request:
+  /v1/responder/chats/{chatID}/close:
     post:
       tags: [Responder side]
-      summary: send a response with the completed request
+      summary: mark a chat as closed
       description: |
-        Submits the completed work for the current request in a chat.
+        Marks a chat as completed from the responder's side.
 
       parameters:
         - $ref: "#/components/parameters/AccessToken"
         - $ref: "#/components/parameters/ChatId"
 
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/FulfillRequestRequest"
-
       responses:
-        "201":
+        "200":
           description: |
-            **Created**
+            **OK**
             
-            Returns the submitted fulfillment.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Fulfillment"
-
-        "400":
-          description: |
-            **Bad Request**
-            
-            Missing or invalid fulfillment data
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
-              examples:
-                BAD_REQUEST:
-                  summary: BAD_REQUEST
-                  value:
-                    error: BAD_REQUEST
-                    message: "Missing or invalid fulfillment data: missing field: responseText"
+            Chat successfully closed.
 
         "401":
           description: |
@@ -1181,18 +1048,6 @@ paths:
         - $ref: "#/components/parameters/AccessToken"
         
 
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                accountName:
-                  type: string
-                  example: WamWarriors
-              required:
-                - accountName
 
       responses:
         "200":
@@ -1205,9 +1060,6 @@ paths:
               schema:
                 type: object
                 properties:
-                  accountName:
-                    type: string
-                    example: Guy
                   tokenBalance:
                     type: number
                     example: 250
@@ -1258,7 +1110,7 @@ paths:
                   summary: NOT_FOUND
                   value:
                     error: NOT_FOUND
-                    message: accountName cannot be found
+                    message: account cannot be found
 
         "500":
           description: |
@@ -1293,14 +1145,10 @@ paths:
             schema:
               type: object
               properties:
-                accountName:
-                  type: string
-                  example: Guy
                 tokens:
                   type: number
                   example: 100
               required:
-                - accountName
                 - tokens
 
       responses:
@@ -1314,9 +1162,7 @@ paths:
               schema:
                 type: object
                 properties:
-                  accountName:
-                    type: string
-                    example: WamWarriors
+
                   tokensAdded:
                     type: number
                     example: 100
@@ -1370,7 +1216,7 @@ paths:
                   summary: NOT_FOUND
                   value:
                     error: NOT_FOUND
-                    message: accountName cannot be found
+                    message: account cannot be found
 
         "500":
           description: |
@@ -1405,14 +1251,10 @@ paths:
             schema:
               type: object
               properties:
-                accountName:
-                  type: string
-                  example: WamWarriors
                 tokens:
                   type: number
                   example: 100
               required:
-                - accountName
                 - tokens
 
       responses:
@@ -1426,9 +1268,7 @@ paths:
               schema:
                 type: object
                 properties:
-                  accountName:
-                    type: string
-                    example: WamWarriors
+
                   tokensRedeemed:
                     type: number
                     example: 100
@@ -1482,7 +1322,7 @@ paths:
                   summary: NOT_FOUND
                   value:
                     error: NOT_FOUND
-                    message: accountName cannot be found
+                    message: account cannot be found
 
         "409":
           description: |
@@ -1776,136 +1616,6 @@ paths:
                     error: INTERNAL_SERVER_ERROR
                     message: An internal server error occurred.
 
-  /v1/auth/role:
-    get:
-      tags: [Auth]
-      summary: get the current active user role
-      description: |
-        Returns the currently authenticated user's active app role.
-
-      parameters:
-        - $ref: "#/components/parameters/AccessToken"
-
-      responses:
-        "200":
-          description: |
-            **OK**
-            
-            Returns the active role for the authenticated user.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/RoleResponse"
-
-        "401":
-          description: |
-            **Unauthorized**
-            
-            Missing or invalid bearer token.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
-              examples:
-                UNAUTHORIZED:
-                  summary: UNAUTHORIZED
-                  value:
-                    error: UNAUTHORIZED
-                    message: Missing or invalid bearer token
-
-        "500":
-          description: |
-            **Internal Server Error**
-            
-            There was an internal server error. If this persists contact us at contact@gptless.au.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
-              examples:
-                INTERNAL_SERVER_ERROR:
-                  summary: INTERNAL_SERVER_ERROR
-                  value:
-                    error: INTERNAL_SERVER_ERROR
-                    message: An internal server error occurred.
-
-    put:
-      tags: [Auth]
-      summary: update the current active user role
-      description: |
-        Sets the currently authenticated user's active app role.
-
-      parameters:
-        - $ref: "#/components/parameters/AccessToken"
-
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/UpdateRoleRequest"
-
-      responses:
-        "200":
-          description: |
-            **OK**
-            
-            Returns the updated active role.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/RoleResponse"
-
-        "400":
-          description: |
-            **Bad Request**
-            
-            Missing or invalid role data.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
-              examples:
-                BAD_REQUEST:
-                  summary: BAD_REQUEST
-                  value:
-                    error: BAD_REQUEST
-                    message: "Missing or invalid role data: invalid role"
-
-        "401":
-          description: |
-            **Unauthorized**
-            
-            Missing or invalid bearer token.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
-              examples:
-                UNAUTHORIZED:
-                  summary: UNAUTHORIZED
-                  value:
-                    error: UNAUTHORIZED
-                    message: Missing or invalid bearer token
-
-        "500":
-          description: |
-            **Internal Server Error**
-            
-            There was an internal server error. If this persists contact us at contact@gptless.au.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
-              examples:
-                INTERNAL_SERVER_ERROR:
-                  summary: INTERNAL_SERVER_ERROR
-                  value:
-                    error: INTERNAL_SERVER_ERROR
-                    message: An internal server error occurred.
-
-
-
 components:
 
   securitySchemes:
@@ -1940,9 +1650,6 @@ components:
         requestText:
           type: string
           example: Create a website for my online store.
-        title:
-          type: string
-          example: website design
         category:
           type: string
           example: writing
@@ -1952,40 +1659,53 @@ components:
       required:
         - requestText
 
-    MessageRequest:
+    ClaimChatRequest:
+      type: object
+      properties:
+        title:
+          type: string
+          example: My Cool Website
+      required:
+        - title
+
+    RequesterMessageRequest:
       type: object
       properties:
         message:
           type: string
           example: could you resize the title please.
+        tokensToSpend:
+          type: number
+          example: 0
+          description: "0 for normal message, > 0 to create a new request."
       required:
         - message
 
-    NewRequestRequest:
+    ResponderMessageRequest:
       type: object
       properties:
-        requestText:
+        message:
           type: string
-          example: Now make a mobile version for it as well.
-        tokensToSpend:
-          type: number
-          example: 70
+          example: here is the revised version.
       required:
-        - requestText
+        - message
 
-    FulfillRequestRequest:
+    ReviewChatRequest:
       type: object
       properties:
-        responseText:
-          type: string
-          example: here is the link to the completed code.
-        attachments:
-          type: array
-          items:
-            type: string
-            example: https://randomDropboxLink.com
+        resolved:
+          type: boolean
+          example: true
+          description: did this resolve your request
+        rating:
+          type: integer
+          minimum: 1
+          maximum: 5
+          example: 5
+          description: 1-5 stars
       required:
-        - responseText
+        - resolved
+        - rating
 
     ChatSummary:
       type: object
@@ -1995,7 +1715,11 @@ components:
           example: 12345
         title:
           type: string
-          example: poem request
+          nullable: true
+          example: My Cool Website
+        originalRequest:
+          type: string
+          example: Create a website for my online store.
         category:
           type: string
           example: writing
@@ -2013,56 +1737,19 @@ components:
     Message:
       type: object
       properties:
-        messageID:
-          type: string
-          example: msg_001
         senderType:
           type: string
           example: requester
         message:
           type: string
           example: Please make the tone more professional.
+        tokens:
+          type: number
+          example: 0
         createdAt:
           type: string
           format: date-time
           example: "2025-08-14T10:35:00Z"
-
-    Request:
-      type: object
-      properties:
-        requestID:
-          type: string
-          example: req_001
-        requestText:
-          type: string
-          example: Now make a social media version using the same context.
-        status:
-          type: string
-          example: pending
-        tokensSpent:
-          type: number
-          example: 15
-        createdAt:
-          type: string
-          format: date-time
-          example: "2025-08-14T10:40:00Z"
-
-    Fulfillment:
-      type: object
-      properties:
-        fulfillmentID:
-          type: string
-          example: full_001
-        requestID:
-          type: string
-          example: req_001
-        responseText:
-          type: string
-          example: Here is the completed work for your request.
-        createdAt:
-          type: string
-          format: date-time
-          example: "2025-08-14T11:10:00Z"
 
     Chat:
       type: object
@@ -2070,6 +1757,10 @@ components:
         chatID:
           type: string
           example: 12345
+        title:
+          type: string
+          nullable: true
+          example: My Cool Website
         requesterUsername:
           type: string
           example: Guy
@@ -2080,6 +1771,12 @@ components:
         status:
           type: string
           example: open
+        originalRequest:
+          type: string
+          example: Create a website for my online store.
+        tokensSpent:
+          type: number
+          example: 40
         createdAt:
           type: string
           format: date-time
@@ -2088,10 +1785,6 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/Message"
-        requests:
-          type: array
-          items:
-            $ref: "#/components/schemas/Request"
 
     RegisterRequest:
       type: object
@@ -2131,16 +1824,6 @@ components:
         - email
         - password
 
-    UpdateRoleRequest:
-      type: object
-      properties:
-        role:
-          type: string
-          enum: [requester, responder]
-          example: responder
-      required:
-        - role
-
     User:
       type: object
       properties:
@@ -2173,14 +1856,6 @@ components:
           example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9
         user:
           $ref: "#/components/schemas/User"
-
-    RoleResponse:
-      type: object
-      properties:
-        role:
-          type: string
-          enum: [requester, responder]
-          example: requester
 
     Error:
       type: object
