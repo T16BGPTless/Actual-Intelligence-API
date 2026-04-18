@@ -9,7 +9,7 @@ import {
   Box, 
   Container, 
   Divider,
-  Tooltip 
+  useTheme 
 } from "@mui/material";
 
 // Icons
@@ -30,9 +30,18 @@ const BACKEND_URL = "http://localhost:5000";
 function Navbar() {
   const navigate = useNavigate();
   const location = useLocation();
+  const theme = useTheme(); 
   const token = localStorage.getItem("token");
   const email = localStorage.getItem("email"); 
   const [balance, setBalance] = useState(0);
+
+  const currentThemeId = localStorage.getItem("ui-theme") || "default";
+  const isDefault = currentThemeId === 'default';
+  const isDarkMode = theme.palette.mode === 'dark';
+
+  const navBg = isDefault ? "#000" : (isDarkMode ? "#000" : theme.palette.primary.main);
+  const navTextColor = "#fff"; 
+  const borderColor = isDefault ? "#333" : "rgba(255,255,255,0.2)";
 
   const isActive = (path) => location.pathname === path;
 
@@ -68,7 +77,7 @@ function Navbar() {
       bottom: 0,
       left: 0,
       width: active ? '100%' : '0%',
-      height: '3px', // Slightly thicker for the bigger navbar
+      height: '3px',
       bgcolor: color,
       transition: 'width 0.3s ease-in-out',
     },
@@ -77,14 +86,13 @@ function Navbar() {
     }
   });
 
-  const getNavButtonStyle = (path, customColor = '#eee', activeBg = '#1a1a1a') => {
+  const getNavButtonStyle = (path, customColor = '#eee', activeBg = 'rgba(255,255,255,0.1)') => {
     const active = isActive(path);
     
     return {
       textTransform: 'none',
-      borderRadius: 0,
+      borderRadius: 0, 
       fontWeight: active ? 800 : 600,
-      // Consistent padding for all buttons now that Settings has a label
       px: active ? 5 : 4, 
       minWidth: active ? '100px' : '90px', 
       py: 2,
@@ -95,7 +103,7 @@ function Navbar() {
       height: '100%',
       transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
       position: 'relative',
-      fontSize: active ? '1.1rem' : '1rem', // Bigger base font
+      fontSize: active ? '1.1rem' : '1rem',
       '& .MuiButton-startIcon': {
         transition: 'transform 0.3s ease',
         transform: active ? 'scale(1.3)' : 'scale(1)',
@@ -114,18 +122,28 @@ function Navbar() {
     };
   };
 
+  const SettingsButton = () => (
+    <Button
+      startIcon={<SettingsIcon />}
+      sx={getNavButtonStyle("/settings", isDefault ? '#00e5ff' : '#fff', 'rgba(0, 229, 255, 0.15)')}
+      onClick={() => navigate("/settings")}
+    >
+      Settings
+    </Button>
+  );
+
   return (
     <AppBar
       position="fixed"
       elevation={0}
       sx={{
-        bgcolor: '#000',
-        borderBottom: '1px solid #333',
-        zIndex: (theme) => theme.zIndex.drawer + 1
+        bgcolor: navBg,
+        borderBottom: `1px solid ${borderColor}`,
+        zIndex: (theme) => theme.zIndex.drawer + 1,
+        transition: 'background-color 0.4s ease'
       }}
     >
       <Container maxWidth={false} sx={{ height: '100%', px: { xs: 2, md: 4 } }}>
-        {/* Navbar height increased to 80px */}
         <Toolbar disableGutters sx={{ justifyContent: 'space-between', height: '80px' }}>
           
           <Box onClick={() => navigate("/")} sx={{
@@ -145,14 +163,14 @@ function Navbar() {
               src={catLogo}
               alt="AI Logo"
               sx={{
-                height: '40px', // Bigger logo
+                height: '40px',
                 width: 'auto',
                 display: 'block',
                 filter: 'invert(1) brightness(1.2)'
               }}
             />
-            <Typography variant="h5" sx={{ fontWeight: 900, letterSpacing: '-1px', color: '#fff', textTransform: 'uppercase' }}>
-              <span style={{ color: '#666' }}>Actual</span> Intelligence
+            <Typography variant="h5" sx={{ fontWeight: 900, letterSpacing: '-1px', color: navTextColor, textTransform: 'uppercase' }}>
+              <span style={{ color: isDefault ? '#666' : 'rgba(255,255,255,0.5)' }}>Actual</span> Intelligence
             </Typography>
           </Box>
 
@@ -162,10 +180,12 @@ function Navbar() {
                 <Button startIcon={<LoginIcon />} sx={getNavButtonStyle("/login")} onClick={() => navigate("/login")}>
                   Log In
                 </Button>
-                <Divider orientation="vertical" flexItem sx={{ bgcolor: '#333', width: '1px', my: 2 }} />
+                <Divider orientation="vertical" flexItem sx={{ bgcolor: borderColor, width: '1px', my: 2 }} />
                 <Button startIcon={<PersonAddIcon />} sx={getNavButtonStyle("/register")} onClick={() => navigate("/register")}>
                   Sign Up
                 </Button>
+                <Divider orientation="vertical" flexItem sx={{ bgcolor: borderColor, width: '1px', my: 2 }} />
+                <SettingsButton />
               </>
             ) : (
               <>
@@ -173,44 +193,37 @@ function Navbar() {
                   My Chats
                 </Button>
 
-                <Divider orientation="vertical" flexItem sx={{ bgcolor: '#333', width: '1px', my: 2 }} />
+                <Divider orientation="vertical" flexItem sx={{ bgcolor: borderColor, width: '1px', my: 2 }} />
 
                 <Button startIcon={<PsychologyIcon />} sx={getNavButtonStyle("/tasks/claim")} onClick={() => navigate("/tasks/claim")}>
                   Task List
                 </Button>
 
-                <Divider orientation="vertical" flexItem sx={{ bgcolor: '#333', width: '1px', my: 2 }} />
+                <Divider orientation="vertical" flexItem sx={{ bgcolor: borderColor, width: '1px', my: 2 }} />
 
                 <Button startIcon={<AccountCircleIcon />} sx={getNavButtonStyle("/profile")} onClick={() => navigate("/profile")}>
                   Profile
                 </Button>
 
-                <Divider orientation="vertical" flexItem sx={{ bgcolor: '#333', width: '1px', my: 2 }} />
+                <Divider orientation="vertical" flexItem sx={{ bgcolor: borderColor, width: '1px', my: 2 }} />
 
                 <Button
                   startIcon={<TokenIcon sx={{ color: '#FFD700' }} />}
-                  sx={getNavButtonStyle("/tokens", '#FFD700', '#1a1a00')}
+                  sx={getNavButtonStyle("/tokens", '#FFD700', 'rgba(255, 215, 0, 0.15)')}
                   onClick={() => navigate("/tokens")}
                 >
                   {balance} ◈
                 </Button>
 
-                <Divider orientation="vertical" flexItem sx={{ bgcolor: '#333', width: '1px', my: 2 }} />
+                <Divider orientation="vertical" flexItem sx={{ bgcolor: borderColor, width: '1px', my: 2 }} />
 
-                {/* Settings - Now with "Settings" label included */}
-                <Button
-                  startIcon={<SettingsIcon />}
-                  sx={getNavButtonStyle("/settings", '#00e5ff', '#001a1a')}
-                  onClick={() => navigate("/settings")}
-                >
-                  Settings
-                </Button>
+                <SettingsButton />
 
-                <Divider orientation="vertical" flexItem sx={{ bgcolor: '#333', width: '1px', my: 2 }} />
+                <Divider orientation="vertical" flexItem sx={{ bgcolor: borderColor, width: '1px', my: 2 }} />
 
                 <Button
                   startIcon={<LogoutIcon />}
-                  sx={getNavButtonStyle(null, '#ff5252', '#1a0000')}
+                  sx={getNavButtonStyle(null, '#ff5252', 'rgba(255, 82, 82, 0.15)')}
                   onClick={logout}
                 >
                   Logout

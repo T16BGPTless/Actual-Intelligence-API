@@ -9,6 +9,7 @@ import {
   Typography,
   Divider,
   Grid,
+  useTheme,
 } from "@mui/material";
 
 // Icons
@@ -64,6 +65,9 @@ const ScrollSection = ({ children, index, delay = 0 }) => {
 
 export default function Home() {
   const navigate = useNavigate();
+  const theme = useTheme(); // Access the current theme (light/dark)
+  const isDarkMode = theme.palette.mode === 'dark';
+
   const isAuthenticated = Boolean(localStorage.getItem("token"));
   const username = localStorage.getItem("username") || "User";
 
@@ -95,15 +99,18 @@ export default function Home() {
     }, 600);
   };
 
+  // Theme-aware styles
   const subSectionStyle = {
     flex: 1,
     transition: 'all 0.4s cubic-bezier(0.165, 0.84, 0.44, 1)',
     position: 'relative',
     '&:hover': {
-      bgcolor: '#fff',
+      bgcolor: theme.palette.background.paper,
       zIndex: 10,
       transform: 'scale(1.03)',
-      boxShadow: '20px 20px 60px rgba(0,0,0,0.1), -20px -20px 60px rgba(0,0,0,0.05)',
+      boxShadow: isDarkMode 
+        ? '0 20px 60px rgba(0,0,0,0.5)' 
+        : '20px 20px 60px rgba(0,0,0,0.1), -20px -20px 60px rgba(0,0,0,0.05)',
     }
   };
 
@@ -153,14 +160,16 @@ export default function Home() {
     fontWeight: 900,
     letterSpacing: "2px",
     transition: "all 0.2s ease-in-out",
-    border: "2px solid black",
-    bgcolor: isGrey ? "#eee" : (isPrimary ? "black" : "transparent"),
-    color: isPrimary ? "white" : "black",
+    border: `2px solid ${theme.palette.text.primary}`,
+    bgcolor: isGrey 
+        ? (isDarkMode ? "#333" : "#eee") 
+        : (isPrimary ? theme.palette.text.primary : "transparent"),
+    color: isPrimary ? theme.palette.background.default : theme.palette.text.primary,
     "&:hover": {
-      bgcolor: isPrimary ? "#333" : "black",
-      color: "white",
+      bgcolor: isPrimary ? theme.palette.action.hover : theme.palette.text.primary,
+      color: theme.palette.background.default,
       transform: "translateY(-2px)",
-      boxShadow: "6px 6px 0px rgba(0,0,0,0.1)",
+      boxShadow: `6px 6px 0px ${isDarkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'}`,
     },
   });
 
@@ -171,14 +180,14 @@ export default function Home() {
       <ScrollSection index={0}>
         <Box sx={{ textAlign: 'center', mb: 8, position: 'relative' }}>
           <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 2, mb: -1 }}>
-            <Divider sx={{ width: 40, borderBottomWidth: 3, borderColor: 'black' }} />
+            <Divider sx={{ width: 40, borderBottomWidth: 3, borderColor: theme.palette.text.primary }} />
             <Typography variant="overline" sx={{ fontWeight: 900, letterSpacing: 4 }}>Cat.v1</Typography>
-            <Divider sx={{ width: 40, borderBottomWidth: 3, borderColor: 'black' }} />
+            <Divider sx={{ width: 40, borderBottomWidth: 3, borderColor: theme.palette.text.primary }} />
           </Box>
           <Typography variant="h2" sx={{ fontWeight: 900, letterSpacing: "-2px" }}>
-            <span style={{ color: '#bbb' }}>ACTUAL</span> INTELLIGENCE
+            <span style={{ color: isDarkMode ? '#555' : '#bbb' }}>ACTUAL</span> INTELLIGENCE
           </Typography>
-          <Typography variant="h6" sx={{ fontWeight: 500, color: "#666", mt: 1, textTransform: 'uppercase', letterSpacing: 1 }}>
+          <Typography variant="h6" sx={{ fontWeight: 500, color: theme.palette.text.secondary, mt: 1, textTransform: 'uppercase', letterSpacing: 1 }}>
             Human Logic. Ethical Processing. Verified Results.
           </Typography>
         </Box>
@@ -187,23 +196,23 @@ export default function Home() {
       {/* 1. Welcome / Mission Section */}
       <ScrollSection index={1}>
         {!isAuthenticated ? (
-          <Box sx={{ display: 'flex', flexDirection: { xs: 'column', md: 'row' }, border: '3px solid black', mb: 10, bgcolor: 'white' }}>
-            <Box sx={{ ...subSectionStyle, p: 4, textAlign: 'left', bgcolor: '#f9f9f9', borderRight: { md: '3px solid black' } }}>
-                <Typography variant="overline" sx={{ fontWeight: 900, color: '#bbb' }}>01 // The Mission</Typography>
+          <Box sx={{ display: 'flex', flexDirection: { xs: 'column', md: 'row' }, border: `3px solid ${theme.palette.text.primary}`, mb: 10, bgcolor: theme.palette.background.paper }}>
+            <Box sx={{ ...subSectionStyle, p: 4, textAlign: 'left', bgcolor: isDarkMode ? '#1a1a1a' : '#f9f9f9', borderRight: { md: `3px solid ${theme.palette.text.primary}` } }}>
+                <Typography variant="overline" sx={{ fontWeight: 900, color: theme.palette.text.disabled }}>01 // The Mission</Typography>
                 <Typography variant="h5" sx={{ fontWeight: 900, mb: 2, mt: 1 }}>DECENTRALIZING COGNITION</Typography>
-                <Typography variant="body2" sx={{ color: "#333", lineHeight: 1.8 }}>
+                <Typography variant="body2" sx={{ color: theme.palette.text.primary, lineHeight: 1.8 }}>
                     Current automated models are environmentally unsustainable and spiritually hollow. 
                     <strong> Actual Intelligence</strong> restores the human element.
                 </Typography>
             </Box>
-            <Box sx={{ flex: 0.8, bgcolor: 'black', display: 'flex', alignItems: 'center', justifyContent: 'center', p: 4 }}>
+            <Box sx={{ flex: 0.8, bgcolor: theme.palette.text.primary, display: 'flex', alignItems: 'center', justifyContent: 'center', p: 4 }}>
                <Box 
                   component="img"
                   src={catIntro}
                   sx={{
                     maxHeight: "150px",
                     width: "auto",
-                    filter: "invert(1) brightness(1.2)",
+                    filter: isDarkMode ? "none" : "invert(1) brightness(1.2)",
                     objectFit: "contain"
                   }}
                 />
@@ -212,25 +221,17 @@ export default function Home() {
         ) : (
           <Box sx={{ 
             display: 'flex', 
-            border: '3px solid black', 
+            border: `3px solid ${theme.palette.text.primary}`, 
             mb: 10, 
-            bgcolor: 'black', 
+            bgcolor: 'black', // Keeping visual punch with black for the welcome banner
             height: { xs: 'auto', md: '250px' }, 
             overflow: 'hidden' 
           }}>
-              <Box sx={{ 
-                flex: 1.2, 
-                display: { xs: 'none', md: 'block' },
-                position: 'relative',
-                p: 2 
-              }}>
+              <Box sx={{ flex: 1.2, display: { xs: 'none', md: 'block' }, position: 'relative', p: 2 }}>
                 <Box sx={{
-                  width: '100%',
-                  height: '100%',
+                  width: '100%', height: '100%',
                   backgroundImage: `url(${catLeft})`,
-                  backgroundSize: 'contain',
-                  backgroundRepeat: 'no-repeat',
-                  backgroundPosition: 'center right',
+                  backgroundSize: 'contain', backgroundRepeat: 'no-repeat', backgroundPosition: 'center right',
                   filter: "invert(1) brightness(1.2)",
                   WebkitMaskImage: 'linear-gradient(to right, rgba(0,0,0,1) 0%, rgba(0,0,0,0) 90%)',
                   maskImage: 'linear-gradient(to right, rgba(0,0,0,1) 0%, rgba(0,0,0,0) 90%)'
@@ -248,19 +249,11 @@ export default function Home() {
                   </Typography>
               </Box>
 
-              <Box sx={{ 
-                flex: 1.2, 
-                display: { xs: 'none', md: 'block' },
-                position: 'relative',
-                p: 2 
-              }}>
+              <Box sx={{ flex: 1.2, display: { xs: 'none', md: 'block' }, position: 'relative', p: 2 }}>
                 <Box sx={{
-                  width: '100%',
-                  height: '100%',
+                  width: '100%', height: '100%',
                   backgroundImage: `url(${catRight})`,
-                  backgroundSize: 'contain',
-                  backgroundRepeat: 'no-repeat',
-                  backgroundPosition: 'center left',
+                  backgroundSize: 'contain', backgroundRepeat: 'no-repeat', backgroundPosition: 'center left',
                   filter: "invert(1) brightness(1.2)",
                   WebkitMaskImage: 'linear-gradient(to left, rgba(0,0,0,1) 0%, rgba(0,0,0,0) 90%)',
                   maskImage: 'linear-gradient(to left, rgba(0,0,0,1) 0%, rgba(0,0,0,0) 90%)'
@@ -272,11 +265,11 @@ export default function Home() {
 
       {/* 2. Main Dashboard Panel */}
       <ScrollSection index={2}>
-        <Box sx={{ display: 'flex', flexDirection: { xs: 'column', md: 'row' }, borderTop: '3px solid black', borderBottom: '3px solid black', bgcolor: '#f4f4f4', mb: 8, overflow: 'visible' }}>
+        <Box sx={{ display: 'flex', flexDirection: { xs: 'column', md: 'row' }, borderTop: `3px solid ${theme.palette.text.primary}`, borderBottom: `3px solid ${theme.palette.text.primary}`, bgcolor: theme.palette.background.default, mb: 8, overflow: 'visible' }}>
           
           <Box sx={{ ...subSectionStyle, p: { xs: 4, md: 8 }, display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center' }}>
             <Typography variant="h4" sx={{ fontWeight: 900, mb: 2 }}>{isAuthenticated ? 'REQUESTER' : 'LOGIN'}</Typography>
-            <Typography variant="body2" sx={{ mb: 4, color: "#555", maxWidth: "320px", lineHeight: 1.8 }}>
+            <Typography variant="body2" sx={{ mb: 4, color: theme.palette.text.secondary, maxWidth: "320px", lineHeight: 1.8 }}>
               {isAuthenticated ? "Deploy tasks to our global network of specialists." : "Securely re-authenticate your session."}
             </Typography>
             <Button onClick={() => navigate(isAuthenticated ? "/chat/new" : "/login")} sx={{ ...buttonBase(true), mt: 'auto' }}>
@@ -284,18 +277,17 @@ export default function Home() {
             </Button>
           </Box>
 
-          <Divider orientation="vertical" flexItem sx={{ borderRightWidth: 3, borderColor: 'black', display: { xs: 'none', md: 'block' }, zIndex: 11 }} />
+          <Divider orientation="vertical" flexItem sx={{ borderRightWidth: 3, borderColor: theme.palette.text.primary, display: { xs: 'none', md: 'block' }, zIndex: 11 }} />
           
           <Box sx={{ ...subSectionStyle, p: { xs: 4, md: 8 }, display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center' }}>
             <Typography variant="h4" sx={{ fontWeight: 900, mb: 2 }}>{isAuthenticated ? 'RESPONDER' : 'REGISTER'}</Typography>
-            <Typography variant="body2" sx={{ mb: 4, color: "#555", maxWidth: "320px", lineHeight: 1.8 }}>
+            <Typography variant="body2" sx={{ mb: 4, color: theme.palette.text.secondary, maxWidth: "320px", lineHeight: 1.8 }}>
                {isAuthenticated ? "Monetize your unique cognitive abilities." : "Join the premier marketplace for sustainable labor."}
             </Typography>
             <Button onClick={() => navigate(isAuthenticated ? "/tasks/claim" : "/register")} sx={{ ...buttonBase(false), mt: 'auto' }}>
               {isAuthenticated ? 'Claim Tasks' : 'Sign Up'}
             </Button>
           </Box>
-
         </Box>
       </ScrollSection>
 
@@ -304,13 +296,13 @@ export default function Home() {
         <ScrollSection index={3}>
           <Box sx={{ 
             mt: 4, mb: 8, p: { xs: 4, md: 6 }, 
-            border: '2px solid black', 
-            bgcolor: '#000', 
+            border: `2px solid ${isDarkMode ? theme.palette.divider : 'black'}`, 
+            bgcolor: isDarkMode ? '#0a0a0a' : '#000', 
             color: 'white',
             position: 'relative',
             overflow: 'hidden',
             transition: 'transform 0.4s ease',
-            '&:hover': { transform: 'translateY(-10px)', boxShadow: '0 20px 40px rgba(0,0,0,0.4)' }
+            '&:hover': { transform: 'translateY(-10px)', boxShadow: isDarkMode ? '0 20px 40px rgba(0,0,0,0.8)' : '0 20px 40px rgba(0,0,0,0.4)' }
           }}>
             <Typography variant="h1" sx={{ 
               position: 'absolute', right: -20, bottom: -40, 
@@ -414,11 +406,6 @@ export default function Home() {
                     cursor: 'pointer', pointerEvents: 'auto',
                     transform: `translateX(30px) ${isShaking ? 'rotate(3deg)' : ''}`,
                     '&:hover': { transform: 'translateX(5px) scale(1.05)' },
-                    '@keyframes shake': {
-                      '0%, 100%': { transform: 'translateX(30px) rotate(0deg)' },
-                      '25%': { transform: 'translateX(28px) rotate(-4deg)' },
-                      '75%': { transform: 'translateX(32px) rotate(4deg)' }
-                    },
                     animation: isShaking ? 'shake 0.1s infinite' : 'none',
                   }}
                 />
@@ -430,7 +417,7 @@ export default function Home() {
 
       {/* 4. Footer */}
       <ScrollSection index={4}>
-        <Typography variant="caption" sx={{ mt: 4, display: 'block', textAlign: 'center', opacity: 0.5, fontWeight: 700 }}>
+        <Typography variant="caption" sx={{ mt: 4, display: 'block', textAlign: 'center', opacity: 0.5, fontWeight: 700, color: theme.palette.text.primary }}>
           © 2026 ACTUAL INTELLIGENCE — POWERED BY HUMAN INTELLIGENCE
         </Typography>
       </ScrollSection>
@@ -441,6 +428,11 @@ export default function Home() {
             0% { opacity: 0; transform: translateY(20px) scale(0.5); }
             20% { opacity: 1; transform: translateY(0) scale(1.2); }
             100% { opacity: 0; transform: translateY(-60px) scale(1); }
+          }
+          @keyframes shake {
+            0%, 100% { transform: translateX(30px) rotate(0deg); }
+            25% { transform: translateX(28px) rotate(-4deg); }
+            75% { transform: translateX(32px) rotate(4deg); }
           }
         `}
       </style>
