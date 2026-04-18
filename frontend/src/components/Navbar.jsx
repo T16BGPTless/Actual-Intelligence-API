@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import axios from "axios";
 import { 
   AppBar, 
@@ -8,7 +8,8 @@ import {
   Typography, 
   Box, 
   Container, 
-  Divider 
+  Divider,
+  Tooltip 
 } from "@mui/material";
 
 // Icons
@@ -19,21 +20,27 @@ import TokenIcon from '@mui/icons-material/Token';
 import ForumIcon from '@mui/icons-material/Forum';
 import PsychologyIcon from '@mui/icons-material/Psychology';
 import AccountCircleIcon from '@mui/icons-material/AccountCircle';
+import SettingsIcon from '@mui/icons-material/Settings';
 
 // Assets
 import catLogo from "../assets/cat1.png";
 
+const BACKEND_URL = "http://localhost:5000";
+
 function Navbar() {
   const navigate = useNavigate();
+  const location = useLocation();
   const token = localStorage.getItem("token");
   const email = localStorage.getItem("email"); 
   const [balance, setBalance] = useState(0);
+
+  const isActive = (path) => location.pathname === path;
 
   useEffect(() => {
     const fetchBalance = async () => {
       if (token) {
         try {
-          const res = await axios.get(`http://localhost:5000/v1/tokens`, {
+          const res = await axios.get(`${BACKEND_URL}/v1/tokens`, {
             headers: { Authorization: `Bearer ${token}` },
             params: { accountName: email } 
           });
@@ -54,81 +61,57 @@ function Navbar() {
     navigate("/login");
   };
 
-  const underlineEffect = {
+  const underlineEffect = (active, color = '#fff') => ({
     '&::after': {
       content: '""',
       position: 'absolute',
       bottom: 0,
       left: 0,
-      width: '0%',
-      height: '2px',
-      bgcolor: '#fff',
+      width: active ? '100%' : '0%',
+      height: '3px', // Slightly thicker for the bigger navbar
+      bgcolor: color,
       transition: 'width 0.3s ease-in-out',
     },
     '&:hover::after': {
       width: '100%',
     }
-  };
+  });
 
-  const navButtonStyle = {
-    textTransform: 'none',
-    borderRadius: 0,
-    fontWeight: 600,
-    px: 4,
-    py: 2,
-    color: '#eee',
-    display: 'flex',
-    gap: 1.5,
-    height: '100%',
-    transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-    position: 'relative',
-    '& .MuiButton-startIcon': {
-      transition: 'transform 0.3s ease',
-    },
-    '&:hover': {
-      bgcolor: '#1a1a1a',
-      color: '#fff',
-      fontSize: '1.05rem',
+  const getNavButtonStyle = (path, customColor = '#eee', activeBg = '#1a1a1a') => {
+    const active = isActive(path);
+    
+    return {
+      textTransform: 'none',
+      borderRadius: 0,
+      fontWeight: active ? 800 : 600,
+      // Consistent padding for all buttons now that Settings has a label
+      px: active ? 5 : 4, 
+      minWidth: active ? '100px' : '90px', 
+      py: 2,
+      color: active ? '#fff' : customColor,
+      bgcolor: active ? activeBg : 'transparent',
+      display: 'flex',
+      gap: 1.5,
+      height: '100%',
+      transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+      position: 'relative',
+      fontSize: active ? '1.1rem' : '1rem', // Bigger base font
       '& .MuiButton-startIcon': {
-        transform: 'scale(1.2)',
+        transition: 'transform 0.3s ease',
+        transform: active ? 'scale(1.3)' : 'scale(1)',
       },
-    },
-    ...underlineEffect
-  };
-
-  const brandContainerStyle = {
-    display: 'flex',
-    alignItems: 'center',
-    gap: 1.5, 
-    cursor: "pointer", 
-    position: 'relative',
-    px: 1,
-    py: 0.5,
-    transition: 'transform 0.3s ease',
-    '&:hover': {
-      transform: 'scale(1.02)', 
-    },
-    '&::after': {
-      content: '""',
-      position: 'absolute',
-      bottom: -2,
-      left: 0,
-      width: '0%',
-      height: '3px',
-      bgcolor: '#fff',
-      transition: 'width 0.3s ease-in-out',
-    },
-    '&:hover::after': {
-      width: '100%',
-    }
-  };
-
-  const brandTextStyle = {
-    fontWeight: 900, 
-    letterSpacing: '-1px',
-    color: '#fff',
-    textTransform: 'uppercase',
-    display: 'inline-block',
+      '&:hover': {
+        bgcolor: activeBg,
+        color: '#fff',
+        px: !active ? 5 : undefined,
+        minWidth: !active ? '100px' : undefined,
+        fontSize: !active ? '1.1rem' : undefined,
+        '& .MuiButton-startIcon': {
+          transform: 'scale(1.3)', 
+        },
+      },
+      ...underlineEffect(active, active ? '#fff' : customColor)
+    };
   };
 
   return (
@@ -141,81 +124,64 @@ function Navbar() {
         zIndex: (theme) => theme.zIndex.drawer + 1
       }}
     >
-      <Container maxWidth="lg" sx={{ height: '100%' }}>
-        <Toolbar disableGutters sx={{ justifyContent: 'space-between', height: '64px' }}>
+      <Container maxWidth={false} sx={{ height: '100%', px: { xs: 2, md: 4 } }}>
+        {/* Navbar height increased to 80px */}
+        <Toolbar disableGutters sx={{ justifyContent: 'space-between', height: '80px' }}>
           
-          {/* Brand/Logo Section */}
-          <Box onClick={() => navigate("/")} sx={brandContainerStyle}>
+          <Box onClick={() => navigate("/")} sx={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 2, 
+              cursor: "pointer", 
+              position: 'relative',
+              px: 2,
+              py: 1,
+              transition: 'transform 0.3s ease',
+              '&:hover': { transform: 'scale(1.05)' },
+              ...underlineEffect(isActive("/"))
+          }}>
             <Box 
               component="img"
               src={catLogo}
               alt="AI Logo"
               sx={{
-                height: '32px', 
+                height: '40px', // Bigger logo
                 width: 'auto',
                 display: 'block',
                 filter: 'invert(1) brightness(1.2)'
               }}
             />
-            <Typography variant="h6" sx={brandTextStyle}>
+            <Typography variant="h5" sx={{ fontWeight: 900, letterSpacing: '-1px', color: '#fff', textTransform: 'uppercase' }}>
               <span style={{ color: '#666' }}>Actual</span> Intelligence
             </Typography>
           </Box>
 
-          {/* Nav Links Section */}
-          <Box sx={{ 
-            display: 'flex', 
-            alignItems: 'stretch',
-            bgcolor: '#000', 
-            height: '100%' 
-          }}>
+          <Box sx={{ display: 'flex', alignItems: 'stretch', height: '100%' }}>
             {!token ? (
               <>
-                <Button
-                  startIcon={<LoginIcon />}
-                  sx={navButtonStyle}
-                  onClick={() => navigate("/login")}
-                >
+                <Button startIcon={<LoginIcon />} sx={getNavButtonStyle("/login")} onClick={() => navigate("/login")}>
                   Log In
                 </Button>
-
                 <Divider orientation="vertical" flexItem sx={{ bgcolor: '#333', width: '1px', my: 2 }} />
-
-                <Button
-                  startIcon={<PersonAddIcon />}
-                  sx={navButtonStyle}
-                  onClick={() => navigate("/register")}
-                >
+                <Button startIcon={<PersonAddIcon />} sx={getNavButtonStyle("/register")} onClick={() => navigate("/register")}>
                   Sign Up
                 </Button>
               </>
             ) : (
               <>
-                <Button
-                  startIcon={<ForumIcon />}
-                  sx={navButtonStyle}
-                  onClick={() => navigate("/chat/new")}
-                >
+                <Button startIcon={<ForumIcon />} sx={getNavButtonStyle("/chat/new")} onClick={() => navigate("/chat/new")}>
                   My Chats
                 </Button>
 
                 <Divider orientation="vertical" flexItem sx={{ bgcolor: '#333', width: '1px', my: 2 }} />
 
-                <Button
-                  startIcon={<PsychologyIcon />}
-                  sx={navButtonStyle}
-                  onClick={() => navigate("/tasks/claim")}
-                >
+                <Button startIcon={<PsychologyIcon />} sx={getNavButtonStyle("/tasks/claim")} onClick={() => navigate("/tasks/claim")}>
                   Task List
                 </Button>
 
                 <Divider orientation="vertical" flexItem sx={{ bgcolor: '#333', width: '1px', my: 2 }} />
 
-                <Button
-                  startIcon={<AccountCircleIcon />}
-                  sx={navButtonStyle}
-                  onClick={() => navigate("/profile")}
-                >
+                <Button startIcon={<AccountCircleIcon />} sx={getNavButtonStyle("/profile")} onClick={() => navigate("/profile")}>
                   Profile
                 </Button>
 
@@ -223,17 +189,7 @@ function Navbar() {
 
                 <Button
                   startIcon={<TokenIcon sx={{ color: '#FFD700' }} />}
-                  sx={{ 
-                    ...navButtonStyle, 
-                    color: '#FFD700', 
-                    fontWeight: 800,
-                    '&::after': { ...underlineEffect['&::after'], bgcolor: '#FFD700' },
-                    '&:hover': { 
-                      ...navButtonStyle['&:hover'],
-                      color: '#FFF176', 
-                      bgcolor: '#1a1a00',
-                    } 
-                  }}
+                  sx={getNavButtonStyle("/tokens", '#FFD700', '#1a1a00')}
                   onClick={() => navigate("/tokens")}
                 >
                   {balance} ◈
@@ -241,18 +197,20 @@ function Navbar() {
 
                 <Divider orientation="vertical" flexItem sx={{ bgcolor: '#333', width: '1px', my: 2 }} />
 
+                {/* Settings - Now with "Settings" label included */}
+                <Button
+                  startIcon={<SettingsIcon />}
+                  sx={getNavButtonStyle("/settings", '#00e5ff', '#001a1a')}
+                  onClick={() => navigate("/settings")}
+                >
+                  Settings
+                </Button>
+
+                <Divider orientation="vertical" flexItem sx={{ bgcolor: '#333', width: '1px', my: 2 }} />
+
                 <Button
                   startIcon={<LogoutIcon />}
-                  sx={{ 
-                    ...navButtonStyle, 
-                    color: '#ff5252', 
-                    '&::after': { ...underlineEffect['&::after'], bgcolor: '#ff5252' },
-                    '&:hover': { 
-                      ...navButtonStyle['&:hover'],
-                      color: '#ff1744', 
-                      bgcolor: '#1a0000',
-                    } 
-                  }}
+                  sx={getNavButtonStyle(null, '#ff5252', '#1a0000')}
                   onClick={logout}
                 >
                   Logout

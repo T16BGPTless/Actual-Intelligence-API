@@ -325,7 +325,7 @@ export default function Home() {
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
                   <SecurityIcon sx={{ color: '#FFD700' }} />
                   <Typography variant="overline" sx={{ fontWeight: 900, letterSpacing: 3, color: "#FFD700" }}>
-                    ECONOMY_PROTOCOL_V.4
+                    TOKENOMICS
                   </Typography>
                 </Box>
                 <Typography variant="h4" sx={{ fontWeight: 900, mb: 2, letterSpacing: '-1px' }}>
