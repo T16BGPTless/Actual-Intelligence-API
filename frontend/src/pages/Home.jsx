@@ -115,6 +115,8 @@ export default function Home() {
     position: 'relative',
     display: 'flex',
     flexDirection: 'column',
+    alignItems: 'center', 
+    justifyContent: 'center', 
     bgcolor: theme.palette.background.paper,
     '&:hover': {
       bgcolor: theme.palette.background.paper,
@@ -176,13 +178,11 @@ export default function Home() {
         <Box sx={{ textAlign: 'center', mb: 8 }}>
           <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 2, mb: -1 }}>
             <Divider sx={{ width: 40, borderBottomWidth: 3, borderColor: theme.palette.text.primary }} />
-            <Typography variant="overline" sx={{ fontWeight: 900, letterSpacing: 4 }}>Cat.v1</Typography>
+            <Typography variant="overline" sx={{ fontWeight: 900, letterSpacing: 4 }}>System.v1</Typography>
             <Divider sx={{ width: 40, borderBottomWidth: 3, borderColor: theme.palette.text.primary }} />
           </Box>
-          <Typography variant="h2" sx={{ fontWeight: 900, letterSpacing: "-2px" }}>
-            <span style={{ color: theme.palette.text.disabled }}>ACTUAL</span> INTELLIGENCE
-          </Typography>
-          <Typography variant="h6" sx={{ fontWeight: 500, color: theme.palette.text.secondary, mt: 1, textTransform: 'uppercase' }}>
+          <Typography variant="h2" sx={{ fontWeight: 900, letterSpacing: "-2px" }}>HOME</Typography>
+          <Typography variant="body2" sx={{ opacity: 0.6, fontWeight: 700, letterSpacing: 1, textTransform: 'uppercase' }}>
             Human Logic. Ethical Processing. Verified Results.
           </Typography>
         </Box>
@@ -197,7 +197,7 @@ export default function Home() {
             bgcolor: theme.palette.background.paper,
             '&:hover': { boxShadow: sectionShadow }
           }}>
-            <Box sx={{ ...subSectionStyle, p: 4, textAlign: 'left', borderRight: { md: `3px solid ${theme.palette.text.primary}` } }}>
+            <Box sx={{ ...subSectionStyle, p: 4, textAlign: 'left', alignItems: 'flex-start', borderRight: { md: `3px solid ${theme.palette.text.primary}` } }}>
                 <Typography variant="overline" sx={{ fontWeight: 900, color: theme.palette.text.disabled }}>01 // The Mission</Typography>
                 <Typography variant="h5" sx={{ fontWeight: 900, mb: 1, mt: 1 }}>DECENTRALIZING COGNITION</Typography>
                 <Typography variant="body2" sx={{ color: theme.palette.text.secondary, lineHeight: 1.6 }}>
@@ -256,20 +256,20 @@ export default function Home() {
           
           <Box sx={{ ...subSectionStyle, p: { xs: 4, md: 8 }, textAlign: 'center', borderRight: { md: `3px solid ${theme.palette.text.primary}` } }}>
             <Typography variant="h4" sx={{ fontWeight: 900, mb: 1 }}>{isAuthenticated ? 'REQUESTER' : 'LOGIN'}</Typography>
-            <Typography variant="body2" sx={{ mb: 4, color: theme.palette.text.secondary, maxWidth: "320px", mx: "auto" }}>
+            <Typography variant="body2" sx={{ mb: 4, color: theme.palette.text.secondary, maxWidth: "320px" }}>
               {isAuthenticated ? "Got questions? Outsource your logic to our human network." : "Re-enter the marketplace."}
             </Typography>
-            <Button onClick={() => navigate(isAuthenticated ? "/chat/new" : "/login")} sx={{ ...buttonBase(true), mt: 'auto' }}>
+            <Button onClick={() => navigate(isAuthenticated ? "/chat/new" : "/login")} sx={{ ...buttonBase(true) }}>
               {isAuthenticated ? 'Create Chat' : 'Log In'}
             </Button>
           </Box>
           
           <Box sx={{ ...subSectionStyle, p: { xs: 4, md: 8 }, textAlign: 'center' }}>
             <Typography variant="h4" sx={{ fontWeight: 900, mb: 1 }}>{isAuthenticated ? 'RESPONDER' : 'REGISTER'}</Typography>
-            <Typography variant="body2" sx={{ mb: 4, color: theme.palette.text.secondary, maxWidth: "320px", mx: "auto" }}>
+            <Typography variant="body2" sx={{ mb: 4, color: theme.palette.text.secondary, maxWidth: "320px" }}>
                 {isAuthenticated ? "Ready to work? Solve tasks and secure your tokens." : "Start monetizing your brainpower."}
             </Typography>
-            <Button onClick={() => navigate(isAuthenticated ? "/tasks/claim" : "/register")} sx={{ ...buttonBase(false), mt: 'auto' }}>
+            <Button onClick={() => navigate(isAuthenticated ? "/tasks/claim" : "/register")} sx={{ ...buttonBase(false) }}>
               {isAuthenticated ? 'Claim Tasks' : 'Sign Up'}
             </Button>
           </Box>
@@ -295,15 +295,15 @@ export default function Home() {
                   Refill your digital wallet to keep the intelligence flowing.
                 </Typography>
               </Grid>
-
-              <Grid item xs={12} md={3}>
+              
+              <Grid item xs={12} md={3} sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
                 <Button 
                   onClick={() => navigate("/tokens")} 
                   startIcon={<TokenIcon sx={{ transition: '0.4s ease' }} />}
                   sx={{ 
                     border: `2px solid ${bannerOutline}`, borderRadius: 0, px: 6, py: 2.5,
                     color: bannerText, fontWeight: 900, fontSize: '1.1rem',
-                    position: 'relative', overflow: 'hidden',
+                    position: 'relative', overflow: 'hidden', width: '100%',
                     transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
                     '&:hover': { 
                       bgcolor: 'rgba(255, 255, 255, 0.1)', 

@@ -72,9 +72,7 @@ function App() {
           default: active.bg, 
           paper: forceDark ? active.bg : (themeMode === 'fluffy' ? "#fff" : active.bg)
         },
-        text: { 
-          primary: active.text 
-        }
+        text: { primary: active.text }
       },
       shape: { borderRadius: 0 }, 
       typography: { 
@@ -91,15 +89,9 @@ function App() {
             }
           },
         },
-        MuiButton: {
-          styleOverrides: { root: { borderRadius: 0, fontWeight: 900 } }
-        },
-        MuiPaper: {
-          styleOverrides: { root: { backgroundImage: 'none', borderRadius: 0 } }
-        },
-        MuiOutlinedInput: {
-          styleOverrides: { root: { borderRadius: 0 } }
-        }
+        MuiButton: { styleOverrides: { root: { borderRadius: 0, fontWeight: 900 } } },
+        MuiPaper: { styleOverrides: { root: { backgroundImage: 'none', borderRadius: 0 } } },
+        MuiOutlinedInput: { styleOverrides: { root: { borderRadius: 0 } } }
       },
     });
   }, [textScale, themeMode, forceDark]);
@@ -117,7 +109,13 @@ function App() {
               <Route path="/register" element={<Register />} />
               <Route path="/profile" element={<Profile />} />
               <Route path="/tokens" element={<Tokens />} />
-              <Route path="/settings" element={<Settings setTextScale={setTextScale} setThemeMode={setThemeMode} />} />
+              <Route path="/settings" element={
+                <Settings 
+                  setTextScale={setTextScale} 
+                  setThemeMode={setThemeMode} 
+                  setForceDark={setForceDark} 
+                />
+              } />
               <Route path="/chat" element={<ChatList />} />
               <Route path="/chat/new" element={<ChatCreate />} />
               <Route path="/chat/:id" element={<ChatPage />} />
