@@ -51,7 +51,7 @@ def get_tokens():
     if error:
         return error
 
-    client = user_client(access_token)
+    client = service_client()
     try:
         account = _account_for_user(client, str(user.id))
     except APIError as e:
@@ -91,7 +91,7 @@ def buy_tokens():
     if tokens is None:
         return return_error("BAD_REQUEST", "Missing or invalid data: tokens required.")
 
-    client = user_client(access_token)
+    client = service_client()
     try:
         account = _account_for_user(client, str(user.id))
     except APIError as e:
@@ -156,7 +156,7 @@ def redeem_tokens():
     if tokens is None:
         return return_error("BAD_REQUEST", "Missing or invalid data: tokens required.")
 
-    client = user_client(access_token)
+    client = service_client()
     try:
         account = _account_for_user(client, str(user.id))
     except APIError as e:
