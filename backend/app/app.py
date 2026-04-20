@@ -1,4 +1,8 @@
+from dotenv import load_dotenv
+load_dotenv()
+
 from flask import Flask, redirect
+from flask_cors import CORS
 
 # Import all blueprints
 from app.routes.auth import auth_bp
@@ -7,6 +11,9 @@ from app.routes.responder import responder_bp
 from app.routes.tokens import tokens_bp
 
 app = Flask(__name__)
+
+# ✅ ADD THIS LINE
+CORS(app, origins=["http://localhost:5173"])
 
 # Register all blueprints
 app.register_blueprint(auth_bp)
@@ -17,12 +24,8 @@ app.register_blueprint(tokens_bp)
 
 @app.route("/")
 def home():
-    """Redirects to swagger docs."""
-    return redirect(
-        "https://ai-docs.gptless.au"
-    )  # Prefereblly the actual actual intelligence doc
+    return redirect("https://ai-docs.gptless.au")
 
 
-# debug=True for now
-if __name__ == "__main__":  # pragma: no cover
-    app.run(debug=True)
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=5000, debug=True, use_reloader=False)
