@@ -67,10 +67,10 @@ def get_tokens():
             .eq("account_id", account["account_id"])
             .maybe_single()
         )
+        balance = 0 if balance_row is None else int(balance_row["balance"] or 0)
     except APIError:
         return return_error("INTERNAL_SERVER_ERROR")
 
-    balance = int((balance_row or {}).get("balance") or 0)
     return (
         jsonify({"tokenBalance": balance}),
         HTTPStatus.OK,
