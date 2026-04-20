@@ -2,7 +2,6 @@
 
 import re
 import requests
-import threading
 import os
 
 from datetime import datetime, UTC
@@ -46,8 +45,8 @@ def _account_for_user(client, user_id: str):
     return res[0] if res else None
 
 
-def _send_invoice_background(customer_name, email, tokens, cost, api_token):
-    """Runs the slow invoice generation in a background thread."""
+def _send_invoice(customer_name, email, tokens, cost, api_token):
+    """Runs the invoice generation synchronously with a 2-minute timeout."""
     try:
         today_str = datetime.now(UTC).strftime("%Y-%m-%d")
 
@@ -85,12 +84,13 @@ def _send_invoice_background(customer_name, email, tokens, cost, api_token):
             "https://api.gptless.au/v2/invoices/generate",
             json=invoice_payload,
             headers={"APIToken": str(api_token)},
-            timeout=120,
+            timeout=120,  # 2 minute wait time
         )
 
         # Extract the invoice ID using regex
-        invoice_ids = re.findall(r"<cbc:ID>(.+?)</cbc:ID>", resp.text)
+        invoice_ids = re.findall(r"<cbc:ID>(.+)</cbc:ID>", resp.text)
         if invoice_ids:
+            # Guarantee invoice_id is a string
             invoice_id = str(invoice_ids[0])
 
             # Send the email notification
@@ -99,11 +99,11 @@ def _send_invoice_background(customer_name, email, tokens, cost, api_token):
                 f"https://api.gptless.au/v2/invoices/notify/{invoice_id}",
                 json=notify_payload,
                 headers={"APIToken": str(api_token)},
-                timeout=15,
+                timeout=120,  # 2 minute wait time
             )
 
     except Exception as e:
-        print(f"Background invoice error: {str(e)}")
+        print(f"Invoice error: {str(e)}")
 
 
 @tokens_bp.route("/v1/tokens", methods=["GET"])
@@ -210,10 +210,8 @@ def buy_tokens():
 
     api_token = os.environ.get("INVOICE_API_TOKEN")
 
-    threading.Thread(
-        target=_send_invoice_background,
-        args=(customer_name, user.email, tokens, cost, api_token),
-    ).start()
+    _send_invoice(customer_name, user.email, tokens, cost, api_token)
+
     return (
         jsonify(
             {
