@@ -64,7 +64,7 @@ function Tokens() {
     },
     {
       name: "Pro",
-      tokens: 200,
+      tokens: 100,
       price: 100,
       cat: proCat,
     },
