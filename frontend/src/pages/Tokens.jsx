@@ -18,6 +18,8 @@ import basicCat from "../assets/tokens/basic.png";
 import advancedCat from "../assets/tokens/advanced.png";
 import proCat from "../assets/tokens/pro.png";
 
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL
+
 // theme stuff taken from joey for consistency. probably should import but ill set that up later 
 const ScrollSection = ({ children, index, delay = 0 }) => {
   const [isVisible, setIsVisible] = useState(false);
@@ -126,7 +128,7 @@ function Tokens() {
           return;
         }
 
-        const res = await axios.get("http://localhost:5000/v1/tokens", {
+        const res = await axios.get(`${BACKEND_URL}/v1/tokens`, {
           headers: {
             AccessToken: accessToken,
           },
@@ -175,7 +177,7 @@ function Tokens() {
       }
 
       const res = await axios.post(
-        "http://localhost:5000/v1/tokens/buy",
+        `${BACKEND_URL}/v1/tokens/buy`,
         {
           tokens: tokenAmount,
         },
@@ -230,7 +232,7 @@ function Tokens() {
       }
 
       const res = await axios.post(
-        "http://localhost:5000/v1/tokens/redeem",
+        `${BACKEND_URL}/v1/tokens/redeem`,
         {
           tokens: amount,
         },
