@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { 
   Box, Container, Typography, Divider, MenuItem, TextField, Button, Fade, Grid, useTheme, Switch
 } from "@mui/material";
+import { ScrollSection } from "../helpers.jsx"
 
 // Icons
 import TextFieldsIcon from '@mui/icons-material/TextFields';
@@ -19,55 +20,6 @@ import cat3 from "../assets/cat3.png";
 import cat4 from "../assets/cat4.png";
 import cat5 from "../assets/cat5.png";
 import cat6 from "../assets/cat6.png";
-
-const ScrollSection = ({ children, index, delay = 0, isResetting }) => {
-  const [isVisible, setIsVisible] = useState(false);
-  const domRef = useRef();
-  const animationsEnabled = localStorage.getItem("ui-animations") !== "false";
-
-  useEffect(() => {
-    const observer = new IntersectionObserver(entries => {
-      entries.forEach(entry => setIsVisible(entry.isIntersecting));
-    }, { threshold: 0.1 });
-    const currentRef = domRef.current;
-    if (currentRef) observer.observe(currentRef);
-    return () => { if (currentRef) observer.unobserve(currentRef); };
-  }, []);
-
-  const isEven = index % 2 === 0;
-  const isTargetedByReset = isResetting && [0, 1, 2, 3].includes(index);
-
-  return (
-    <Box 
-      id={`section-target-${index}`} 
-      ref={domRef} 
-      sx={{
-        opacity: isTargetedByReset ? 0.3 : (!animationsEnabled || isVisible ? 1 : 0),
-        transform: isTargetedByReset 
-          ? "scale(0.97)" 
-          : (!animationsEnabled ? "none" : (isVisible ? "translateX(0)" : `translateX(${isEven ? "-50px" : "50px"})`)),
-        filter: isTargetedByReset ? "grayscale(1)" : "none",
-        transition: "all 0.6s cubic-bezier(0.16, 1, 0.3, 1)",
-        transitionDelay: animationsEnabled && !isResetting ? `${delay}ms` : "0ms",
-        width: "100%", mb: 12,
-        position: 'relative',
-        animation: isTargetedByReset ? 'shake 0.3s infinite' : 'none',
-        '@keyframes shake': {
-          '0%': { transform: 'scale(0.97) translate(0,0)' },
-          '25%': { transform: 'scale(0.97) translate(-3px, 1px)' },
-          '50%': { transform: 'scale(0.97) translate(3px, -1px)' },
-          '75%': { transform: 'scale(0.97) translate(-2px, -2px)' },
-          '100%': { transform: 'scale(0.97) translate(0,0)' },
-        },
-        '&:hover': {
-            transform: (animationsEnabled && isVisible && !isResetting) ? 'scale(1.01)' : undefined,
-            zIndex: 5,
-        }
-      }}>
-      {children}
-    </Box>
-  );
-};
 
 export default function Settings({ setTextScale, setThemeMode, setForceDark }) {
   const theme = useTheme();

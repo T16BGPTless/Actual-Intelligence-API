@@ -104,7 +104,7 @@ function Register() {
     }
   });
 
-  const actionButtonStyle = (isPrimary) => ({
+  const buttonBase = (isPrimary) => ({
     py: 1.5,
     borderRadius: '0px',
     textTransform: 'uppercase',
@@ -215,7 +215,7 @@ function Register() {
             type="submit" 
             disableElevation 
             disabled={loading}
-            sx={{ ...actionButtonStyle(true), ...fadeSlide(400) }}
+            sx={{ ...buttonBase(true), ...fadeSlide(400) }}
           >
             {loading ? (
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
@@ -230,7 +230,7 @@ function Register() {
           <Divider sx={{ my: 4, fontWeight: 800, textTransform: 'uppercase', color: theme.palette.text.disabled, ...fadeSlide(450) }}>or</Divider>
           
           <Box sx={{ display: 'flex', gap: 2, ...fadeSlide(500) }}>
-            <Button variant="outlined" fullWidth onClick={() => navigate("/login")} sx={actionButtonStyle(false)} disabled={loading}>Log In</Button>
+            <Button variant="outlined" fullWidth onClick={() => navigate("/login")} sx={buttonBase(false)} disabled={loading}>Log In</Button>
           </Box>
         </Box>
       </Box>
