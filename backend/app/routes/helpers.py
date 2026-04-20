@@ -42,33 +42,39 @@ def return_error(error: str, custom_message: str = None) -> tuple[Response, int]
     ), status
 
 
-def require_access_token() -> tuple[str | None, tuple[Response, int] | None]:
-    """Validate that the Authorization header is present and starts with Bearer."""
+def require_access_token():
     access_token_header = request.headers.get("AccessToken")
-    auth_header = request.headers.get("Authorization")
-
-    # OpenAPI declares `AccessToken` header; also allow Authorization Bearer.
     if access_token_header:
-        return access_token_header, None
-    if auth_header and auth_header.startswith("Bearer "):
-        return auth_header.split(" ", 1)[1], None
+        token = access_token_header.strip()
+        if token.lower().startswith("bearer "):
+            token = token.split(" ", 1)[1].strip()
+        return token, None
 
-    # Missing both accepted auth header formats.
-    if not access_token_header and not auth_header:
-        return None, return_error("UNAUTHORIZED")
+    auth_header = request.headers.get("Authorization")
+    if auth_header and auth_header.lower().startswith("bearer "):
+        return auth_header.split(" ", 1)[1].strip(), None
+
     return None, return_error("UNAUTHORIZED")
 
 
-def require_supabase_user(
-    access_token: str,
-) -> tuple[object | None, tuple[Response, int] | None]:
-    """Validate JWT with GoTrue and return the Supabase user model."""
+def require_supabase_user(access_token: str) -> tuple[object | None, tuple[Response, int] | None]:
     try:
+        # Temporary debug (safe: no full token)
+        token = access_token or ""
+        print(
+            "GoTrue token debug:",
+            "len=", len(token),
+            "prefix=", token[:20],
+        )
+
         res = anon_client().auth.get_user(access_token)
     except AuthApiError:
+        # Optional: also log when it fails
+        print("GoTrue auth.get_user failed")
         return None, return_error("UNAUTHORIZED")
 
     if not res or not res.user:
+        print("GoTrue returned no user")
         return None, return_error("UNAUTHORIZED")
 
     return res.user, None
