@@ -149,7 +149,7 @@ export default function Home() {
         <Box sx={{ textAlign: 'center', mb: 8 }}>
           <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 2, mb: -1 }}>
             <Divider sx={{ width: 40, borderBottomWidth: 3, borderColor: theme.palette.text.primary }} />
-            <Typography variant="overline" sx={{ fontWeight: 900, letterSpacing: 4 }}>System.v1</Typography>
+            <Typography variant="overline" sx={{ fontWeight: 900, letterSpacing: 4 }}>Cat.v1</Typography>
             <Divider sx={{ width: 40, borderBottomWidth: 3, borderColor: theme.palette.text.primary }} />
           </Box>
           <Typography variant="h2" sx={{ fontWeight: 900, letterSpacing: "-2px" }}>HOME</Typography>
