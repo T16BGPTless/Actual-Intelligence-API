@@ -1,4 +1,5 @@
 from dotenv import load_dotenv
+
 load_dotenv()
 
 from flask import Flask, redirect
@@ -14,8 +15,13 @@ app = Flask(__name__)
 
 # ✅ ADD THIS LINE
 CORS(
-    app, 
-    origins=["https://ai.gptless.au", "https://ai-preview.gptless.au", "https://ai-api-preview.gptless.au", "http://localhost:3000"],
+    app,
+    origins=[
+        "https://ai.gptless.au",
+        "https://ai-preview.gptless.au",
+        "https://ai-api-preview.gptless.au",
+        "http://localhost:3000",
+    ],
     allow_headers=["Content-Type", "Authorization", "AccessToken"],
 )
 

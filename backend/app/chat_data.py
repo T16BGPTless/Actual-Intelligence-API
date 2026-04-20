@@ -4,6 +4,7 @@ from __future__ import annotations
 from typing import Any
 from postgrest.exceptions import APIError
 
+
 def api_ts(value: Any) -> str:
     if value is None:
         return ""
@@ -12,7 +13,10 @@ def api_ts(value: Any) -> str:
         return s[:-6] + "Z"
     return s
 
-def categories_from_flask_arg(values: list[str] | None, raw: str | None) -> list[str] | None:
+
+def categories_from_flask_arg(
+    values: list[str] | None, raw: str | None
+) -> list[str] | None:
     merged: list[str] = []
     if values:
         merged.extend(values)
@@ -22,12 +26,21 @@ def categories_from_flask_arg(values: list[str] | None, raw: str | None) -> list
         merged = [p.strip() for p in raw.split(",") if p.strip()]
     return merged if merged else None
 
+
 def profile_map(client, user_ids: set[str]) -> dict[str, dict]:
     ids = [i for i in user_ids if i]
     if not ids:
         return {}
-    rows = client.table("profiles").select("user_id,username,display_name").in_("user_id", ids).execute().data or []
+    rows = (
+        client.table("profiles")
+        .select("user_id,username,display_name")
+        .in_("user_id", ids)
+        .execute()
+        .data
+        or []
+    )
     return {str(r["user_id"]): r for r in rows}
+
 
 def chat_summary_dict(client, chat: dict) -> dict:
     return {
@@ -40,6 +53,7 @@ def chat_summary_dict(client, chat: dict) -> dict:
         "createdAt": api_ts(chat.get("created_at")),
     }
 
+
 def message_dict(row: dict) -> dict:
     return {
         "senderType": row["sender_type"],
@@ -48,9 +62,13 @@ def message_dict(row: dict) -> dict:
         "createdAt": api_ts(row.get("created_at")),
     }
 
+
 def build_chat_detail(client, chat: dict) -> dict:
     cid = chat["chat_id"]
-    uid_set = {str(chat["requester_id"]), str(chat["responder_id"]) if chat.get("responder_id") else ""}
+    uid_set = {
+        str(chat["requester_id"]),
+        str(chat["responder_id"]) if chat.get("responder_id") else "",
+    }
     uid_set.discard("")
     pmap = profile_map(client, uid_set)
     rq = str(chat["requester_id"])
@@ -58,8 +76,16 @@ def build_chat_detail(client, chat: dict) -> dict:
     req_username = pmap.get(rq, {}).get("username") or ""
     res_username = pmap.get(rr, {}).get("username") if rr else None
 
-    msgs = client.table("messages").select("message_id,sender_type,message,tokens,created_at").eq("chat_id", cid).order("created_at", desc=False).execute().data or []
-    
+    msgs = (
+        client.table("messages")
+        .select("message_id,sender_type,message,tokens,created_at")
+        .eq("chat_id", cid)
+        .order("created_at", desc=False)
+        .execute()
+        .data
+        or []
+    )
+
     return {
         "chatID": cid,
         "title": chat.get("title"),
@@ -73,14 +99,27 @@ def build_chat_detail(client, chat: dict) -> dict:
         "messages": [message_dict(m) for m in msgs],
     }
 
+
 def get_chat_or_none(client, chat_id: str) -> dict | None:
-    res = client.table("chats").select("*").eq("chat_id", chat_id).maybe_single().execute()
-    if not res: return None
-    if isinstance(res, dict): return res
-    if hasattr(res, "data"): return res.data
+    res = (
+        client.table("chats")
+        .select("*")
+        .eq("chat_id", chat_id)
+        .maybe_single()
+        .execute()
+    )
+    if not res:
+        return None
+    if isinstance(res, dict):
+        return res
+    if hasattr(res, "data"):
+        return res.data
     return None
 
-def create_chat_with_initial_request(client, body: dict) -> tuple[dict | None, str | None]:
+
+def create_chat_with_initial_request(
+    client, body: dict
+) -> tuple[dict | None, str | None]:
     tokens_raw = body.get("tokensToSpend")
     if tokens_raw is None:
         return None, "invalid_tokens"
@@ -95,13 +134,17 @@ def create_chat_with_initial_request(client, body: dict) -> tuple[dict | None, s
         res = client.rpc(
             "create_chat_with_initial_request",
             {
-                "p_category": (body.get("category") or "") if isinstance(body.get("category"), str) else "",
+                "p_category": (body.get("category") or "")
+                if isinstance(body.get("category"), str)
+                else "",
                 "p_request_text": body["requestText"],
                 "p_tokens_to_spend": tokens,
             },
         ).execute()
     except APIError as e:
-        import traceback; traceback.print_exc()
+        import traceback
+
+        traceback.print_exc()
         print(e)
         return None, "rpc_failed"
 
@@ -110,12 +153,14 @@ def create_chat_with_initial_request(client, body: dict) -> tuple[dict | None, s
         payload = payload[0] if payload else None
     if not payload or not payload.get("ok"):
         return None, "rpc_failed"
-    
+
     # Optional update title
     if body.get("title"):
         try:
-            client.table("chats").update({"title": body["title"]}).eq("chat_id", payload["chat_id"]).execute()
+            client.table("chats").update({"title": body["title"]}).eq(
+                "chat_id", payload["chat_id"]
+            ).execute()
         except APIError:
             return payload, "title_update_failed"
-            
+
     return payload, None

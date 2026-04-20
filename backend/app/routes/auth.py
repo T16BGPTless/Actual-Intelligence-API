@@ -86,6 +86,7 @@ def _user_payload(access_token: str, user) -> dict:
         "lastOnline": last_online,
     }
 
+
 @auth_bp.route("/v1/auth/register", methods=["POST"])
 def register():
     body = request.get_json(silent=True) or {}
@@ -197,5 +198,3 @@ def get_me():
         return return_error("UNAUTHORIZED", "Missing or invalid bearer token")
 
     return jsonify(_user_payload(access_token, user)), HTTPStatus.OK
-
-

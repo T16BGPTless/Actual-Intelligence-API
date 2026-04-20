@@ -19,8 +19,6 @@ def _execute_data(query, default=None):
     return result.data
 
 
-
-
 def _require_positive_tokens(body: dict) -> int | None:
     raw = body.get("tokens")
     try:
@@ -30,16 +28,17 @@ def _require_positive_tokens(body: dict) -> int | None:
     return value if value > 0 else None
 
 
-
-
 def _account_for_user(client, user_id: str):
-    return _execute_data(
+    res = _execute_data(
         client.table("accounts")
         .select("account_id,account_name,created_by")
         .eq("created_by", user_id)
         .order("created_at")
         .limit(1)
     )
+    # Return the first dictionary if it exists, otherwise return None
+    return res[0] if res else None
+
 
 @tokens_bp.route("/v1/tokens", methods=["GET"])
 def get_tokens():
