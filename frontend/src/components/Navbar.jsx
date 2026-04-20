@@ -95,7 +95,9 @@ function Navbar() {
   }, [token, email]);
 
   const logout = () => {
-    localStorage.clear();
+    localStorage.removeItem("token");
+    localStorage.removeItem("username");
+    localStorage.removeItem("email");
     navigate("/login");
   };
 
