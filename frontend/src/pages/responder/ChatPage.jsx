@@ -19,6 +19,8 @@ import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import TokenIcon from "@mui/icons-material/Token";
 import DoneAllIcon from "@mui/icons-material/DoneAll";
 
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
+
 function formatTime(iso) {
   if (!iso) return "";
   return new Date(iso).toLocaleTimeString("en-AU", { hour: "2-digit", minute: "2-digit" });
@@ -42,7 +44,6 @@ export default function ResponderChatPage() {
   const [chat, setChat] = useState(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
-  const [step, setStep] = useState("chat"); // always go straight to chat since claiming happens in TaskList
   const [message, setMessage] = useState("");
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState("");
@@ -59,7 +60,7 @@ export default function ResponderChatPage() {
 
   const fetchChat = async () => {
     try {
-      const res = await fetch(`/v1/responder/chats/${id}`, { headers: authHeader() });
+      const res = await fetch(`${BACKEND_URL}/v1/responder/chats/${id}`, { headers: authHeader() });
       const data = await res.json();
       if (!res.ok) { setLoadError("Chat not found."); return; }
       setChat(data);
@@ -85,7 +86,7 @@ export default function ResponderChatPage() {
     setSending(true);
     setSendError("");
     try {
-      const res = await fetch(`/v1/responder/chats/${id}/messages`, {
+      const res = await fetch(`${BACKEND_URL}/v1/responder/chats/${id}/messages`, {
         method: "POST",
         headers: { ...authHeader(), "Content-Type": "application/json" },
         body: JSON.stringify({ message: message.trim() }),
@@ -105,7 +106,7 @@ export default function ResponderChatPage() {
   const handleFulfill = async () => {
     setFulfilling(true);
     try {
-      const res = await fetch(`/v1/responder/chats/${id}/close`, {
+      const res = await fetch(`${BACKEND_URL}/v1/responder/chats/${id}/close`, {
         method: "POST",
         headers: authHeader(),
       });
