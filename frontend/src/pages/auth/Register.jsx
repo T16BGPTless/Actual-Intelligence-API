@@ -19,7 +19,7 @@ import {
 import Visibility from '@mui/icons-material/Visibility';
 import VisibilityOff from '@mui/icons-material/VisibilityOff';
 
-const BACKEND_URL = "";
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 
 function Register() {
   const navigate = useNavigate();

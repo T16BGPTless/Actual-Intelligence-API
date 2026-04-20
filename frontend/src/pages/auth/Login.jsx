@@ -20,7 +20,7 @@ import Visibility from '@mui/icons-material/Visibility';
 import VisibilityOff from '@mui/icons-material/VisibilityOff';
 import MotionPhotosOffIcon from '@mui/icons-material/MotionPhotosOff';
 
-const BACKEND_URL = "";
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 
 function Login() {
   const navigate = useNavigate();
