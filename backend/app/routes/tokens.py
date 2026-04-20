@@ -2,6 +2,7 @@
 
 import re
 import requests
+import threading
 import os
 
 from datetime import datetime, UTC
@@ -43,6 +44,66 @@ def _account_for_user(client, user_id: str):
     )
     # Return the first dictionary if it exists, otherwise return None
     return res[0] if res else None
+
+
+def _send_invoice_background(customer_name, email, tokens, cost, api_token):
+    """Runs the slow invoice generation in a background thread."""
+    try:
+        today_str = datetime.now(UTC).strftime("%Y-%m-%d")
+
+        invoice_payload = {
+            "InvoiceData": {
+                "supplier": {
+                    "name": "Actual Intelligence",
+                    "ABN": "6767676767",
+                    "streetName": "UNSW, Anzac Parade",
+                    "city": "Sydney",
+                    "postalCode": "2000",
+                    "country": "AU",
+                },
+                "customer": {
+                    "name": customer_name,
+                },
+                "issueDate": today_str,
+                "dueDate": today_str,
+                "totalAmount": cost,
+                "currency": "AUD",
+                "lines": [
+                    {
+                        "lineId": "1",
+                        "description": f"{tokens} tokens",
+                        "quantity": 1,
+                        "unitPrice": cost,
+                        "lineTotal": cost,
+                    }
+                ],
+                "gstPercent": 10,
+            }
+        }
+
+        resp = requests.post(
+            "https://api.gptless.au/v2/invoices/generate",
+            json=invoice_payload,
+            headers={"APIToken": str(api_token)},
+            timeout=120,
+        )
+
+        # Extract the invoice ID using regex
+        invoice_ids = re.findall(r"<cbc:ID>(.+?)</cbc:ID>", resp.text)
+        if invoice_ids:
+            invoice_id = invoice_ids[0]
+
+            # Send the email notification
+            notify_payload = {"recipientEmail": email}
+            requests.post(
+                f"https://api.gptless.au/v2/invoices/notify/{invoice_id}",
+                json=notify_payload,
+                headers={"APIToken": str(api_token)},
+                timeout=15,
+            )
+
+    except Exception as e:
+        print(f"Background invoice error: {str(e)}")
 
 
 @tokens_bp.route("/v1/tokens", methods=["GET"])
@@ -143,71 +204,18 @@ def buy_tokens():
     except APIError as e:
         return return_error("INTERNAL_SERVER_ERROR", str(e))
 
-    try:
-        # Extract user's full name from session metadata, fallback to email if missing
-        customer_name = "Customer"
-        if hasattr(user, "user_metadata") and user.user_metadata:
-            customer_name = user.user_metadata.get("name") or user.email
+    customer_name = "Customer"
+    if hasattr(user, "user_metadata") and user.user_metadata:
+        customer_name = user.user_metadata.get("name") or user.email
 
-        today_str = datetime.now(UTC).strftime("%Y-%m-%d")
+    api_token = request.headers.get("APIToken") or os.environ.get(
+        "INVOICE_API_TOKEN", "REPLACE_WITH_YOUR_TOKEN"
+    )
 
-        invoice_payload = {
-            "InvoiceData": {
-                "supplier": {
-                    "name": "Actual Intelligence",
-                    "ABN": "6767676767",
-                    "streetName": "UNSW, Anzac Parade",
-                    "city": "Sydney",
-                    "postalCode": "2000",
-                    "country": "AU",
-                },
-                "customer": {
-                    "name": customer_name,
-                },
-                "issueDate": today_str,
-                "dueDate": today_str,
-                "totalAmount": cost,
-                "currency": "AUD",
-                "lines": [
-                    {
-                        "lineId": "1",
-                        "description": f"{tokens} tokens",
-                        "quantity": 1,
-                        "unitPrice": cost,
-                        "lineTotal": cost,
-                    }
-                ],
-                "gstPercent": 10,
-            }
-        }
-
-        # Check for APIToken in incoming request headers, or default to an environment variable/placeholder
-        api_token = os.environ.get("INVOICE_API_TOKEN")
-
-        resp = requests.post(
-            "https://api.gptless.au/v2/invoices/generate",
-            json=invoice_payload,
-            headers={"APIToken": str(api_token)},
-            timeout=5,  # Prevents hanging your backend if the external API is slow
-        )
-
-        # Extract the invoice ID using regex
-        invoice_ids = re.findall(r"<cbc:ID>(.+?)</cbc:ID>", resp.text)
-        if invoice_ids:
-            invoice_id = invoice_ids[0]
-
-            # Send the email notification
-            notify_payload = {"recipientEmail": user.email}
-            requests.post(
-                f"https://api.gptless.au/v2/invoices/notify/{invoice_id}",
-                json=notify_payload,
-                headers={"APIToken": str(api_token)},
-                timeout=5,
-            )
-    except Exception as e:
-        # We don't want to block the user receiving their tokens just because the invoice failed
-        print(f"Warning: Failed to generate invoice: {str(e)}")
-
+    threading.Thread(
+        target=_send_invoice_background,
+        args=(customer_name, user.email, tokens, cost, api_token),
+    ).start()
     return (
         jsonify(
             {
