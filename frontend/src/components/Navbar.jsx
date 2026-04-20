@@ -74,7 +74,7 @@ function Navbar() {
       if (token) {
         try {
           const res = await axios.get(`${BACKEND_URL}/v1/tokens`, {
-            headers: { AccessToken: accessToken, },
+            headers: { AccessToken: token, },
           });
           setBalance(res.data.tokenBalance);
         } catch (err) {
