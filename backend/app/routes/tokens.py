@@ -91,10 +91,10 @@ def _send_invoice_background(customer_name, email, tokens, cost, api_token):
         # Extract the invoice ID using regex
         invoice_ids = re.findall(r"<cbc:ID>(.+?)</cbc:ID>", resp.text)
         if invoice_ids:
-            invoice_id = invoice_ids[0]
+            invoice_id = str(invoice_ids[0])
 
             # Send the email notification
-            notify_payload = {"recipientEmail": email}
+            notify_payload = {"recipientEmail": str(email)}
             requests.post(
                 f"https://api.gptless.au/v2/invoices/notify/{invoice_id}",
                 json=notify_payload,
@@ -208,9 +208,7 @@ def buy_tokens():
     if hasattr(user, "user_metadata") and user.user_metadata:
         customer_name = user.user_metadata.get("name") or user.email
 
-    api_token = request.headers.get("APIToken") or os.environ.get(
-        "INVOICE_API_TOKEN", "REPLACE_WITH_YOUR_TOKEN"
-    )
+    api_token = os.environ.get("INVOICE_API_TOKEN")
 
     threading.Thread(
         target=_send_invoice_background,
