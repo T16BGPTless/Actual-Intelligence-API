@@ -110,7 +110,10 @@ def buy_tokens():
             .eq("account_id", account_id)
             .limit(1)
         )
-        current_balance = int((current or {}).get("balance") or 0)
+        # Update parsing here
+        current_balance = 0
+        if current:
+            current_balance = int(current[0].get("balance") or 0)
         updated_balance = current_balance + tokens
 
         if current:
@@ -178,7 +181,10 @@ def redeem_tokens():
     except APIError as e:
         return return_error("INTERNAL_SERVER_ERROR", str(e))
 
-    current_balance = int((current or {}).get("balance") or 0)
+    # Update parsing here
+    current_balance = 0
+    if current:
+        current_balance = int(current[0].get("balance") or 0)
     if current_balance < tokens:
         return return_error("CONFLICT", "Not enough tokens to redeem")
 

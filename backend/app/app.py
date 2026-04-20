@@ -13,7 +13,11 @@ from app.routes.tokens import tokens_bp
 app = Flask(__name__)
 
 # ✅ ADD THIS LINE
-CORS(app, origins=["https://ai.gptless.au", "https://ai-preview.gptless.au", "https://ai-api-preview.gptless.au", "http://localhost:3000"])
+CORS(
+    app, 
+    origins=["https://ai.gptless.au", "https://ai-preview.gptless.au", "https://ai-api-preview.gptless.au", "http://localhost:3000"],
+    allow_headers=["Content-Type", "Authorization", "AccessToken"],
+)
 
 # Register all blueprints
 app.register_blueprint(auth_bp)
