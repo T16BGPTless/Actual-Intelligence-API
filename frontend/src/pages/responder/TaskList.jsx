@@ -20,6 +20,8 @@ import InboxIcon from "@mui/icons-material/Inbox";
 
 import catBg from "../../assets/cat5.png";
 
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
+
 const CATEGORIES = ["General", "Mathematics", "Science", "Programming", "Writing", "Design", "Research", "Other"];
 
 const STATUS_COLORS = {
@@ -43,7 +45,7 @@ export default function TaskList() {
   const navigate = useNavigate();
   const theme = useTheme();
 
-  const [tab, setTab] = useState("available"); // "available" | "mine"
+  const [tab, setTab] = useState("available");
   const [available, setAvailable] = useState([]);
   const [mine, setMine] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -68,8 +70,8 @@ export default function TaskList() {
     const headers = { Authorization: `Bearer ${authToken()}` };
     try {
       const [availRes, mineRes] = await Promise.all([
-        fetch("/v1/responder/chats/unclaimed", { headers }),
-        fetch("/v1/responder/chats", { headers }),
+        fetch(`${BACKEND_URL}/v1/responder/chats/unclaimed`, { headers }),
+        fetch(`${BACKEND_URL}/v1/responder/chats`, { headers }),
       ]);
       const [availData, mineData] = await Promise.all([availRes.json(), mineRes.json()]);
       setAvailable(Array.isArray(availData) ? availData : []);
@@ -90,15 +92,12 @@ export default function TaskList() {
     setClaimError("");
     setLoadingPreview(true);
     try {
-      const res = await fetch(`/v1/responder/chats/${task.chatID}`, {
+      const res = await fetch(`${BACKEND_URL}/v1/responder/chats/${task.chatID}`, {
         headers: { Authorization: `Bearer ${authToken()}` },
       });
       const data = await res.json();
       if (res.ok) {
-        setClaimTarget({
-          ...task,
-          requestText: data.originalRequest || data.requests?.[0]?.requestText || "",
-        });
+        setClaimTarget({ ...task, requestText: data.originalRequest || data.requests?.[0]?.requestText || "" });
       }
     } catch { }
     finally { setLoadingPreview(false); }
@@ -109,7 +108,7 @@ export default function TaskList() {
     setClaiming(true);
     setClaimError("");
     try {
-      const res = await fetch(`/v1/responder/chats/${claimTarget.chatID}/claim`, {
+      const res = await fetch(`${BACKEND_URL}/v1/responder/chats/${claimTarget.chatID}/claim`, {
         method: "POST",
         headers: { Authorization: `Bearer ${authToken()}`, "Content-Type": "application/json" },
         body: JSON.stringify({ title: claimTitle.trim() }),
