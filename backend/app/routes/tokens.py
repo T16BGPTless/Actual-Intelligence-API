@@ -6,7 +6,7 @@ from flask import Blueprint, jsonify, request
 from postgrest.exceptions import APIError
 
 from app.routes.helpers import require_access_token, require_supabase_user, return_error
-from app.supabase_client import service_client, user_client
+from app.supabase_client import service_client
 
 tokens_bp = Blueprint("tokens", __name__)
 
@@ -19,11 +19,6 @@ def _execute_data(query, default=None):
     return result.data
 
 
-def _require_account_name(body: dict) -> str | None:
-    account_name = body.get("accountName")
-    if not isinstance(account_name, str) or not account_name.strip():
-        return None
-    return account_name.strip()
 
 
 def _require_positive_tokens(body: dict) -> int | None:
@@ -35,14 +30,17 @@ def _require_positive_tokens(body: dict) -> int | None:
     return value if value > 0 else None
 
 
-def _account_for_name(client, account_name: str):
+
+
+def _account_for_user(client, user_id: str):
     return _execute_data(
         client.table("accounts")
         .select("account_id,account_name,created_by")
-        .eq("account_name", account_name)
+        .eq("created_by", user_id)
+        .order("created_at")
+        .limit(1)
         .maybe_single()
     )
-
 
 @tokens_bp.route("/v1/tokens", methods=["GET"])
 def get_tokens():
@@ -53,23 +51,14 @@ def get_tokens():
     if error:
         return error
 
-    body = request.get_json(silent=True) or {}
-    account_name = _require_account_name(body)
-    if not account_name:
-        return return_error(
-            "BAD_REQUEST", "Missing or invalid data: accountName is required"
-        )
-
     client = service_client()
     try:
-        account = _account_for_name(client, account_name)
+        account = _account_for_user(client, str(user.id))
     except APIError:
         return return_error("INTERNAL_SERVER_ERROR")
 
     if not account:
-        return return_error("NOT_FOUND", "accountName cannot be found")
-    if str(account.get("created_by")) != str(user.id):
-        return return_error("FORBIDDEN")
+        return return_error("NOT_FOUND", "User account cannot be found")
 
     try:
         balance_row = _execute_data(
@@ -83,7 +72,7 @@ def get_tokens():
 
     balance = int((balance_row or {}).get("balance") or 0)
     return (
-        jsonify({"accountName": account["account_name"], "tokenBalance": balance}),
+        jsonify({"tokenBalance": balance}),
         HTTPStatus.OK,
     )
 
@@ -98,21 +87,18 @@ def buy_tokens():
         return error
 
     body = request.get_json(silent=True) or {}
-    account_name = _require_account_name(body)
     tokens = _require_positive_tokens(body)
-    if not account_name or tokens is None:
-        return return_error("BAD_REQUEST", "Missing or invalid data.")
+    if tokens is None:
+        return return_error("BAD_REQUEST", "Missing or invalid data: tokens required.")
 
     client = service_client()
     try:
-        account = _account_for_name(client, account_name)
+        account = _account_for_user(client, str(user.id))
     except APIError:
         return return_error("INTERNAL_SERVER_ERROR")
 
     if not account:
-        return return_error("NOT_FOUND", "accountName cannot be found")
-    if str(account.get("created_by")) != str(user.id):
-        return return_error("FORBIDDEN")
+        return return_error("NOT_FOUND", "User account cannot be found")
 
     account_id = account["account_id"]
     try:
@@ -148,7 +134,6 @@ def buy_tokens():
     return (
         jsonify(
             {
-                "accountName": account["account_name"],
                 "tokensAdded": tokens,
                 "tokenBalance": updated_balance,
             }
@@ -167,21 +152,18 @@ def redeem_tokens():
         return error
 
     body = request.get_json(silent=True) or {}
-    account_name = _require_account_name(body)
     tokens = _require_positive_tokens(body)
-    if not account_name or tokens is None:
-        return return_error("BAD_REQUEST", "Missing or invalid data.")
+    if tokens is None:
+        return return_error("BAD_REQUEST", "Missing or invalid data: tokens required.")
 
     client = service_client()
     try:
-        account = _account_for_name(client, account_name)
+        account = _account_for_user(client, str(user.id))
     except APIError:
         return return_error("INTERNAL_SERVER_ERROR")
 
     if not account:
-        return return_error("NOT_FOUND", "accountName cannot be found")
-    if str(account.get("created_by")) != str(user.id):
-        return return_error("FORBIDDEN")
+        return return_error("NOT_FOUND", "User account cannot be found")
 
     account_id = account["account_id"]
     try:
@@ -218,7 +200,6 @@ def redeem_tokens():
     return (
         jsonify(
             {
-                "accountName": account["account_name"],
                 "tokensRedeemed": tokens,
                 "tokenBalance": updated_balance,
             }

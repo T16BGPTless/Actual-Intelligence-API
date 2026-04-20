@@ -234,7 +234,7 @@ begin
   on conflict (user_id) do nothing;
 
   insert into public.user_roles (user_id, role)
-  values (new.id, 'requester')
+  values (new.id, 'requester'), (new.id, 'responder')
   on conflict do nothing;
 
   insert into public.accounts (account_name, created_by)
@@ -601,7 +601,7 @@ ALTER TABLE ONLY "public"."user_roles"
 ALTER TABLE "public"."accounts" ENABLE ROW LEVEL SECURITY;
 
 
-CREATE POLICY "accounts_select_owner" ON "public"."accounts" FOR SELECT TO "authenticated" USING ("public"."is_account_owner"("account_id"));
+CREATE POLICY "accounts_select_owner" ON "public"."accounts" FOR SELECT TO "authenticated" USING ((created_by = auth.uid()));
 
 
 
@@ -1359,3 +1359,169 @@ revoke update on table "public"."user_roles" from "service_role";
 CREATE TRIGGER on_auth_user_created AFTER INSERT ON auth.users FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
 
 
+
+-- 1. Add features to chats
+ALTER TABLE public.chats 
+  ADD COLUMN IF NOT EXISTS original_request text DEFAULT '',
+  ADD COLUMN IF NOT EXISTS tokens_spent bigint DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS rating int,
+  ADD COLUMN IF NOT EXISTS resolved boolean;
+
+-- 2. Add tokens to messages
+ALTER TABLE public.messages
+  ADD COLUMN IF NOT EXISTS tokens bigint DEFAULT 0;
+
+-- 3. Remove the obsolete 4-argument signature; the final 3-argument
+--    create_chat_with_initial_request definition is kept later in this migration.
+DROP FUNCTION IF EXISTS public.create_chat_with_initial_request(text, text, text, bigint);
+
+-- 4. Clean up old tables
+ALTER TABLE IF EXISTS public.token_transactions DROP COLUMN IF EXISTS request_id CASCADE;
+DROP TABLE IF EXISTS public.fulfillments CASCADE;
+DROP TABLE IF EXISTS public.requests CASCADE;
+DROP FUNCTION IF EXISTS public.fulfill_chat_active_request CASCADE;
+
+-- 5. Fix permissions for accounts table
+GRANT ALL ON TABLE "public"."accounts" TO "postgres";
+GRANT ALL ON TABLE "public"."accounts" TO "anon";
+GRANT ALL ON TABLE "public"."accounts" TO "authenticated";
+GRANT ALL ON TABLE "public"."accounts" TO "service_role";
+
+-- 6. Fix permissions for other dependent tables
+GRANT ALL ON TABLE "public"."token_balances" TO "postgres";
+GRANT ALL ON TABLE "public"."token_balances" TO "anon";
+GRANT ALL ON TABLE "public"."token_balances" TO "authenticated";
+GRANT ALL ON TABLE "public"."token_balances" TO "service_role";
+
+GRANT ALL ON TABLE "public"."token_transactions" TO "postgres";
+GRANT ALL ON TABLE "public"."token_transactions" TO "anon";
+GRANT ALL ON TABLE "public"."token_transactions" TO "authenticated";
+GRANT ALL ON TABLE "public"."token_transactions" TO "service_role";
+
+GRANT ALL ON TABLE "public"."chats" TO "postgres";
+GRANT ALL ON TABLE "public"."chats" TO "anon";
+GRANT ALL ON TABLE "public"."chats" TO "authenticated";
+GRANT ALL ON TABLE "public"."chats" TO "service_role";
+
+GRANT ALL ON TABLE "public"."messages" TO "postgres";
+GRANT ALL ON TABLE "public"."messages" TO "anon";
+GRANT ALL ON TABLE "public"."messages" TO "authenticated";
+GRANT ALL ON TABLE "public"."messages" TO "service_role";
+
+GRANT ALL ON TABLE "public"."profiles" TO "postgres";
+GRANT ALL ON TABLE "public"."profiles" TO "anon";
+GRANT ALL ON TABLE "public"."profiles" TO "authenticated";
+GRANT ALL ON TABLE "public"."profiles" TO "service_role";
+
+
+-- Grant select on user_roles so has_role() policy checks work for authenticated users
+GRANT SELECT ON TABLE public.user_roles TO authenticated;
+GRANT ALL ON TABLE public.user_roles TO service_role;
+
+ALTER TYPE public.chat_status ADD VALUE IF NOT EXISTS 'claimed';
+ALTER TYPE public.chat_status ADD VALUE IF NOT EXISTS 'closing';
+
+CREATE OR REPLACE FUNCTION public.create_chat_with_initial_request(p_category text, p_request_text text, p_tokens_to_spend bigint)
+RETURNS jsonb
+LANGUAGE plpgsql SECURITY DEFINER
+SET search_path TO public
+AS $$
+declare
+  v_chat_id text;
+  v_account_id uuid;
+  v_balance bigint;
+  v_uid uuid := auth.uid();
+begin
+  if v_uid is null then
+    raise exception 'not authenticated';
+  end if;
+
+  if p_request_text is null or length(trim(p_request_text)) = 0 then
+    raise exception 'invalid_request_text';
+  end if;
+
+  if p_tokens_to_spend is null or p_tokens_to_spend <= 0 then
+    raise exception 'invalid_tokens';
+  end if;
+
+  -- Check tokens
+  SELECT account_id INTO v_account_id FROM public.accounts WHERE created_by = v_uid LIMIT 1;
+  IF v_account_id IS NULL THEN
+    raise exception 'account_not_found';
+  END IF;
+
+  SELECT balance INTO v_balance FROM public.token_balances WHERE account_id = v_account_id;
+  IF v_balance IS NULL OR v_balance < p_tokens_to_spend THEN
+    raise exception 'insufficient_tokens';
+  END IF;
+
+  -- Deduct tokens
+  UPDATE public.token_balances SET balance = balance - p_tokens_to_spend WHERE account_id = v_account_id;
+
+  insert into public.chats (requester_id, category, original_request, tokens_spent, status, claim_state, title)
+  values (
+    v_uid,
+    coalesce(nullif(trim(p_category), ''), 'general'),
+    trim(p_request_text),
+    p_tokens_to_spend,
+    'open',
+    'unclaimed',
+    null
+  )
+  returning chat_id into v_chat_id;
+
+  -- Record transaction using chat_id
+  INSERT INTO public.token_transactions (account_id, txn_type, amount, chat_id, created_by)
+  VALUES (v_account_id, 'spend', -p_tokens_to_spend, v_chat_id, v_uid);
+
+  return jsonb_build_object(
+    'ok', true,
+    'chat_id', v_chat_id
+  );
+end;
+$$;
+CREATE POLICY "chats_close_responder" ON "public"."chats" FOR UPDATE TO "authenticated" USING (("responder_id" = "auth"."uid"()) AND ("status" = 'claimed'::"public"."chat_status")) WITH CHECK (("status" = 'closing'::"public"."chat_status"));
+CREATE OR REPLACE FUNCTION public.post_requester_message(p_chat_id text, p_message text, p_tokens bigint)
+RETURNS jsonb
+LANGUAGE plpgsql SECURITY DEFINER
+SET search_path TO public
+AS $$
+declare
+  v_uid uuid := auth.uid();
+  v_account_id uuid;
+  v_balance bigint;
+  v_msg public.messages%rowtype;
+begin
+  if v_uid is null then
+    raise exception 'not authenticated';
+  end if;
+
+  if p_tokens > 0 then
+    SELECT account_id INTO v_account_id FROM public.accounts WHERE created_by = v_uid LIMIT 1;
+    IF v_account_id IS NULL THEN
+      raise exception 'invalid_tokens';
+    END IF;
+
+    SELECT balance INTO v_balance FROM public.token_balances WHERE account_id = v_account_id;
+    IF v_balance IS NULL OR v_balance < p_tokens THEN
+      raise exception 'invalid_tokens';
+    END IF;
+
+    UPDATE public.token_balances SET balance = balance - p_tokens WHERE account_id = v_account_id;
+
+    INSERT INTO public.token_transactions (account_id, txn_type, amount, chat_id, created_by)
+    VALUES (v_account_id, 'spend', -p_tokens, p_chat_id, v_uid);
+
+    UPDATE public.chats SET tokens_spent = coalesce(tokens_spent, 0) + p_tokens WHERE chat_id = p_chat_id;
+  end if;
+
+  INSERT INTO public.messages (chat_id, sender_id, sender_type, message, tokens)
+  VALUES (p_chat_id, v_uid, 'requester', trim(p_message), p_tokens)
+  RETURNING * INTO v_msg;
+
+  return row_to_json(v_msg)::jsonb;
+end;
+$$;
+
+GRANT ALL ON FUNCTION public.post_requester_message(text, text, bigint) TO authenticated;
+GRANT ALL ON FUNCTION public.create_chat_with_initial_request(text, text, bigint) TO "authenticated";

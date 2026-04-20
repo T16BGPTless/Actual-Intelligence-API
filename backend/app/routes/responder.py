@@ -1,235 +1,174 @@
-"""Responder side endpoints."""
+"""Responder endpoints."""
 
 from http import HTTPStatus
-
 from flask import Blueprint, jsonify, request
 from postgrest.exceptions import APIError
 
-from app.chat_data import (
-    api_ts,
-    build_chat_detail,
-    categories_from_flask_arg,
-    chat_summary_dict,
-    fulfill_request_rpc,
-    get_chat_or_none,
-    message_dict,
-    token_totals_by_chat,
-)
+from app.chat_data import build_chat_detail, get_chat_or_none, chat_summary_dict, message_dict
 from app.routes.helpers import require_access_token, require_supabase_user, return_error
-from app.supabase_client import user_client
+from app.supabase_client import user_client, service_client
 
 responder_bp = Blueprint("responder", __name__)
 
-
 @responder_bp.route("/v1/responder/chats", methods=["GET"])
-def list_chats():
+def claimed_chats():
     access_token, error = require_access_token()
-    if error:
-        return error
+    if error: return error
     user, error = require_supabase_user(access_token)
-    if error:
-        return error
-
+    if error: return error
+        
     client = user_client(access_token)
-    raw = categories_from_flask_arg(
-        request.args.getlist("categories"), request.args.get("categories")
-    )
-
-    q = client.table("chats").select("*").eq("responder_id", str(user.id))
-    if raw:
-        q = q.in_("category", raw)
-    chats = q.order("created_at", desc=True).execute().data or []
-
-    cids = [c["chat_id"] for c in chats]
-    totals = token_totals_by_chat(client, cids)
-    out = [chat_summary_dict(c, totals.get(c["chat_id"], 0)) for c in chats]
-    return jsonify(out), HTTPStatus.OK
-
+    try:
+        q = client.table("chats").select("*").eq("responder_id", str(user.id)).neq("requester_id", str(user.id))
+        data = q.order("created_at", desc=False).execute().data or []
+    except APIError:
+        return return_error("INTERNAL_SERVER_ERROR")
+        
+    return jsonify([chat_summary_dict(client, c) for c in data]), HTTPStatus.OK
 
 @responder_bp.route("/v1/responder/chats/unclaimed", methods=["GET"])
-def list_unclaimed_chats():
+def browse_chats():
     access_token, error = require_access_token()
-    if error:
-        return error
-    _, error = require_supabase_user(access_token)
-    if error:
-        return error
-
+    if error: return error
+    user, error = require_supabase_user(access_token)
+    if error: return error
+        
     client = user_client(access_token)
-    raw = categories_from_flask_arg(
-        request.args.getlist("categories"), request.args.get("categories")
-    )
+    try:
+        q = client.table("chats").select("*").eq("status", "open").neq("requester_id", str(user.id))
+        data = q.order("created_at", desc=False).execute().data or []
+    except APIError:
+        return return_error("INTERNAL_SERVER_ERROR")
 
-    q = (
-        client.table("chats")
-        .select("*")
-        .is_("responder_id", None)
-        .eq("claim_state", "unclaimed")
-        .eq("status", "open")
-    )
-    if raw:
-        q = q.in_("category", raw)
-    chats = q.order("created_at", desc=True).execute().data or []
+    return jsonify([chat_summary_dict(client, c) for c in data]), HTTPStatus.OK
 
-    cids = [c["chat_id"] for c in chats]
-    totals = token_totals_by_chat(client, cids)
-    out = [chat_summary_dict(c, totals.get(c["chat_id"], 0)) for c in chats]
-    return jsonify(out), HTTPStatus.OK
-
-
-@responder_bp.route("/v1/responder/chats/<chatID>", methods=["GET"])
-def get_chat(chatID):
+@responder_bp.route("/v1/responder/chats/<chat_id>", methods=["GET"])
+def get_chat_detail(chat_id):
     access_token, error = require_access_token()
-    if error:
-        return error
-    _, error = require_supabase_user(access_token)
-    if error:
-        return error
-
+    if error: return error
+    user, error = require_supabase_user(access_token)
+    if error: return error
+        
     client = user_client(access_token)
-    chat = get_chat_or_none(client, chatID)
+    chat = get_chat_or_none(client, chat_id)
     if not chat:
-        return return_error("NOT_FOUND", "The requested resource was not found")
-
+        return return_error("NOT_FOUND", "Not Found")
+        
+    if str(chat["responder_id"]) != str(user.id) and chat["status"] != "open":
+        return return_error("FORBIDDEN", "You do not have access to this content")
+        
     return jsonify(build_chat_detail(client, chat)), HTTPStatus.OK
 
-
-@responder_bp.route("/v1/responder/chats/<chatID>/claim", methods=["POST"])
-def claim_chat(chatID):
+@responder_bp.route("/v1/responder/chats/<chat_id>/claim", methods=["POST"])
+def claim_chat(chat_id):
     access_token, error = require_access_token()
-    if error:
-        return error
+    if error: return error
     user, error = require_supabase_user(access_token)
-    if error:
-        return error
-
+    if error: return error
+        
+    body = request.get_json(silent=True) or {}
+    title = body.get("title")
+    if not title:
+        return return_error("BAD_REQUEST", "Missing or invalid claim data: missing field: title")
+        
     client = user_client(access_token)
-    chat = get_chat_or_none(client, chatID)
+    chat = get_chat_or_none(client, chat_id)
     if not chat:
-        return return_error("NOT_FOUND", "The requested resource was not found")
-
-    if chat.get("responder_id"):
+        s_client = service_client()
+        s_chat = get_chat_or_none(s_client, chat_id)
+        if s_chat and (s_chat["status"] != "open" or s_chat["claim_state"] != "unclaimed"):
+            return return_error("CONFLICT", "This chat has already been claimed")
+        return return_error("NOT_FOUND", "Not Found")
+        
+    if chat["status"] != "open" or chat["claim_state"] != "unclaimed":
         return return_error("CONFLICT", "This chat has already been claimed")
-
-    if chat.get("claim_state") != "unclaimed" or chat.get("status") != "open":
-        return return_error("BAD_REQUEST", "Chat cannot be claimed")
-
+        
     try:
-        updated = (
-            client.table("chats")
-            .update({"responder_id": str(user.id), "claim_state": "claimed"})
-            .eq("chat_id", chatID)
-            .is_("responder_id", None)
-            .select("*")
-            .execute()
-            .data
-        )
+        res = client.table("chats").update({
+            "status": "claimed",
+            "claim_state": "claimed",
+            "responder_id": str(user.id),
+            "title": title
+        }).eq("chat_id", chat_id).eq("status", "open").eq("claim_state", "unclaimed").is_("responder_id", "null").execute()
+        if not getattr(res, "data", None):
+            return return_error("CONFLICT", "This chat has already been claimed")
     except APIError as e:
-        if getattr(e, "code", None) == "42501" or (
-            e.message and "permission" in e.message.lower()
-        ):
+        msg = getattr(e, "message", "") or ""
+        code = getattr(e, "code", "") or ""
+        
+        if "policy" in msg.lower() or code == "42501":
             return return_error("FORBIDDEN", "You do not have access to this content")
+        if "duplicate" in msg.lower() or code == "23505" or "already claimed" in msg.lower():
+            return return_error("CONFLICT", "This chat has already been claimed")
+            
         return return_error("INTERNAL_SERVER_ERROR")
+    
+    return jsonify({"message": "Chat successfully claimed."}), HTTPStatus.OK
 
-    if not updated:
-        return return_error("CONFLICT", "This chat has already been claimed")
-
-    refreshed = updated[0]
-    return jsonify(build_chat_detail(client, refreshed)), HTTPStatus.OK
-
-
-@responder_bp.route("/v1/responder/chats/<chatID>/messages", methods=["POST"])
-def send_message(chatID):
+@responder_bp.route("/v1/responder/chats/<chat_id>/messages", methods=["POST"])
+def post_message(chat_id):
     access_token, error = require_access_token()
-    if error:
-        return error
+    if error: return error
     user, error = require_supabase_user(access_token)
-    if error:
-        return error
-
+    if error: return error
+        
     body = request.get_json(silent=True) or {}
-    if "message" not in body:
-        return return_error(
-            "BAD_REQUEST", "Missing or invalid message data: missing field: message"
-        )
-
+    msg_text = body.get("message")
+    if not msg_text:
+        return return_error("BAD_REQUEST", "Missing or invalid message data: missing field: message")
+        
     client = user_client(access_token)
-    if not get_chat_or_none(client, chatID):
-        return return_error("NOT_FOUND")
-
-    # supabase-py request builders are dynamically typed; pylint cannot infer chained members.
-    # pylint: disable=no-member
-    try:
-        row = (
-            client.table("messages")
-            .insert(
-                {
-                    "chat_id": chatID,
-                    "sender_id": str(user.id),
-                    "sender_type": "responder",
-                    "message": body["message"],
-                }
-            )
-            .execute()
-            .data
-        )
-    except APIError:
+    chat = get_chat_or_none(client, chat_id)
+    if not chat:
+        return return_error("NOT_FOUND", "Not Found")
+        
+    if str(chat["responder_id"]) != str(user.id):
         return return_error("FORBIDDEN", "You do not have access to this content")
-    # pylint: enable=no-member
-    if isinstance(row, list):
-        row = row[0] if row else None
-    if not row:
-        return return_error("INTERNAL_SERVER_ERROR")
-
-    return jsonify(message_dict(row)), HTTPStatus.CREATED
-
-
-@responder_bp.route("/v1/responder/chats/<chatID>/fulfill-request", methods=["POST"])
-def fulfill_request(chatID):
-    access_token, error = require_access_token()
-    if error:
-        return error
-    _, error = require_supabase_user(access_token)
-    if error:
-        return error
-
-    body = request.get_json(silent=True) or {}
-    if "responseText" not in body:
-        return return_error(
-            "BAD_REQUEST",
-            "Missing or invalid fulfillment data: missing field: responseText",
-        )
-
-    client = user_client(access_token)
-    if not get_chat_or_none(client, chatID):
-        return return_error("NOT_FOUND")
-
-    payload, err = fulfill_request_rpc(client, chatID, body)
-    if err == "no_active_request":
-        return return_error("CONFLICT", "There is no active request to fulfill")
-    if err or not payload:
-        return return_error("INTERNAL_SERVER_ERROR")
-
+    if chat["status"] != "claimed":
+        return return_error("BAD_REQUEST", "Chat is not in claimed state")
+        
     try:
-        row = (
-            client.table("fulfillments")
-            .select("fulfillment_id,request_id,response_text,created_at")
-            .eq("fulfillment_id", payload["fulfillment_id"])
-            .single()
-            .execute()
-            .data
-        )
-    except APIError:
-        row = None
-
-    if not row:
-        return return_error("INTERNAL_SERVER_ERROR")
-
-    return jsonify(
-        {
-            "fulfillmentID": row["fulfillment_id"],
-            "requestID": row["request_id"],
-            "responseText": row["response_text"],
-            "createdAt": api_ts(row["created_at"]),
+        res = client.table("messages").insert({
+            "chat_id": chat_id,
+            "sender_id": str(user.id),
+            "sender_type": "responder",
+            "message": msg_text
+        }).execute()
+        
+        msg_row = res.data[0] if getattr(res, "data", None) else {
+            "sender_type": "responder",
+            "message": msg_text,
+            "tokens": 0,
+            "created_at": "2026-04-16T12:00:00Z"
         }
-    ), HTTPStatus.CREATED
+    except APIError:
+        return return_error("INTERNAL_SERVER_ERROR")
+    
+    return jsonify(message_dict(msg_row)), HTTPStatus.CREATED
+
+@responder_bp.route("/v1/responder/chats/<chat_id>/close", methods=["POST"])
+def close_chat(chat_id):
+    access_token, error = require_access_token()
+    if error: return error
+    user, error = require_supabase_user(access_token)
+    if error: return error
+        
+    client = user_client(access_token)
+    chat = get_chat_or_none(client, chat_id)
+    if not chat:
+        return return_error("NOT_FOUND", "Not Found")
+        
+    if str(chat["responder_id"]) != str(user.id):
+        return return_error("FORBIDDEN", "You do not have access to this content")
+        
+    if chat["status"] != "claimed":
+        return return_error("CONFLICT", "There is no active request to fulfill")
+        
+    try:
+        client.table("chats").update({
+            "status": "closing"
+        }).eq("chat_id", chat_id).execute()
+    except APIError:
+        return return_error("INTERNAL_SERVER_ERROR")
+    
+    return jsonify({"message": "Chat successfully closed."}), HTTPStatus.OK

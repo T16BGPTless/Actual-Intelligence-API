@@ -18,8 +18,6 @@ import {
 // Icons
 import Visibility from '@mui/icons-material/Visibility';
 import VisibilityOff from '@mui/icons-material/VisibilityOff';
-import BugReportIcon from '@mui/icons-material/BugReport';
-import MotionPhotosOffIcon from '@mui/icons-material/MotionPhotosOff';
 
 const BACKEND_URL = "http://localhost:5000";
 
@@ -43,12 +41,6 @@ function Register() {
   const handleChange = (prop) => (e) => {
     setFormData({ ...formData, [prop]: e.target.value });
     if (errors[prop]) setErrors({ ...errors, [prop]: null });
-  };
-
-  const handleDebugBypass = () => {
-    localStorage.setItem('token', 'debug_token');
-    localStorage.setItem('username', 'Debug_Cat');
-    navigate('/');
   };
 
   const registerUser = async (e) => {
@@ -139,7 +131,6 @@ function Register() {
           
           <Box sx={{ display: 'flex', gap: 2, ...fadeSlide(500) }}>
             <Button variant="outlined" fullWidth onClick={() => navigate("/login")} sx={actionButtonStyle(false)}>Log In</Button>
-            <Button variant="outlined" fullWidth onClick={handleDebugBypass} startIcon={<BugReportIcon />} sx={{ ...actionButtonStyle(false), color: theme.palette.error.main, borderColor: theme.palette.error.main }}>Bypass</Button>
           </Box>
         </Box>
       </Box>

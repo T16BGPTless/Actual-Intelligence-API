@@ -1,518 +1,208 @@
 """Unit tests for responder routes."""
 
+from http import HTTPStatus
 from types import SimpleNamespace
-
+from app.routes import responder as res_routes
+from app.routes.helpers import return_error
 from postgrest.exceptions import APIError
 
-from app.routes import responder as responder_routes
-from tests.conftest import QueryChain
+def _patch_auth(monkeypatch):
+    monkeypatch.setattr(res_routes, "require_access_token", lambda: ("tok", None))
+    monkeypatch.setattr(res_routes, "require_supabase_user", lambda t: (SimpleNamespace(id="user-1"), None))
+    monkeypatch.setattr(res_routes, "user_client", lambda *a: SimpleNamespace())
+    monkeypatch.setattr(res_routes, "service_client", lambda *a: SimpleNamespace()) # Add this!
 
-
-def _ok_auth(monkeypatch, user_id="res-1"):
-    monkeypatch.setattr(responder_routes, "require_access_token", lambda: ("tok", None))
-    monkeypatch.setattr(
-        responder_routes,
-        "require_supabase_user",
-        lambda _t: (SimpleNamespace(id=user_id), None),
-    )
-
-
-def test_list_chats_success(client, monkeypatch):
-    _ok_auth(monkeypatch)
-    fake = QueryChain([{"chat_id": "c1", "status": "open"}])
-    monkeypatch.setattr(
-        responder_routes,
-        "user_client",
-        lambda _t: SimpleNamespace(table=lambda _n: fake),
-    )
-    monkeypatch.setattr(responder_routes, "categories_from_flask_arg", lambda *_a: None)
-    monkeypatch.setattr(
-        responder_routes, "token_totals_by_chat", lambda _c, _ids: {"c1": 9}
-    )
-    monkeypatch.setattr(
-        responder_routes,
-        "chat_summary_dict",
-        lambda chat, tokens: {"chatID": chat["chat_id"], "tokens": tokens},
-    )
-    resp = client.get("/v1/responder/chats")
-    assert resp.status_code == 200
-    assert resp.json[0]["chatID"] == "c1"
-
-
-def test_list_chats_with_category_filter_branch(client, monkeypatch):
-    _ok_auth(monkeypatch)
-    fake = QueryChain([{"chat_id": "c1", "status": "open"}])
-    monkeypatch.setattr(
-        responder_routes,
-        "user_client",
-        lambda _t: SimpleNamespace(table=lambda _n: fake),
-    )
-    monkeypatch.setattr(
-        responder_routes, "categories_from_flask_arg", lambda *_a: ["dev"]
-    )
-    monkeypatch.setattr(responder_routes, "token_totals_by_chat", lambda *_a: {"c1": 1})
-    monkeypatch.setattr(
-        responder_routes,
-        "chat_summary_dict",
-        lambda chat, _tokens: {"chatID": chat["chat_id"]},
-    )
-    resp = client.get("/v1/responder/chats")
-    assert resp.status_code == 200
-
-
-def test_list_unclaimed_success(client, monkeypatch):
-    _ok_auth(monkeypatch)
-    fake = QueryChain([{"chat_id": "u1", "status": "open"}])
-    monkeypatch.setattr(
-        responder_routes,
-        "user_client",
-        lambda _t: SimpleNamespace(table=lambda _n: fake),
-    )
-    monkeypatch.setattr(responder_routes, "categories_from_flask_arg", lambda *_a: None)
-    monkeypatch.setattr(
-        responder_routes, "token_totals_by_chat", lambda _c, _ids: {"u1": 2}
-    )
-    monkeypatch.setattr(
-        responder_routes,
-        "chat_summary_dict",
-        lambda chat, tokens: {"chatID": chat["chat_id"], "tokens": tokens},
-    )
-    resp = client.get("/v1/responder/chats/unclaimed")
-    assert resp.status_code == 200
-    assert resp.json[0]["chatID"] == "u1"
-
-
-def test_list_unclaimed_with_category_filter_branch(client, monkeypatch):
-    _ok_auth(monkeypatch)
-    fake = QueryChain([{"chat_id": "u1", "status": "open"}])
-    monkeypatch.setattr(
-        responder_routes,
-        "user_client",
-        lambda _t: SimpleNamespace(table=lambda _n: fake),
-    )
-    monkeypatch.setattr(
-        responder_routes, "categories_from_flask_arg", lambda *_a: ["dev"]
-    )
-    monkeypatch.setattr(responder_routes, "token_totals_by_chat", lambda *_a: {"u1": 1})
-    monkeypatch.setattr(
-        responder_routes,
-        "chat_summary_dict",
-        lambda chat, _tokens: {"chatID": chat["chat_id"]},
-    )
+def test_browse_chats(client, monkeypatch):
+    _patch_auth(monkeypatch)
+    class FakeQ:
+        def select(self, *a): return self
+        def eq(self, *a): return self
+        def neq(self, *a): return self
+        def order(self, *a, **k): return self
+        def execute(self): return SimpleNamespace(data=[{"chat_id": "2", "status": "open"}])
+    monkeypatch.setattr(res_routes, "user_client", lambda *a: SimpleNamespace(table=lambda *a: FakeQ()))
     resp = client.get("/v1/responder/chats/unclaimed")
     assert resp.status_code == 200
 
-
-def test_list_unclaimed_user_error(client, monkeypatch):
-    monkeypatch.setattr(responder_routes, "require_access_token", lambda: ("tok", None))
-    monkeypatch.setattr(
-        responder_routes,
-        "require_supabase_user",
-        lambda _t: (None, ({"error": "UNAUTHORIZED"}, 401)),
-    )
-    assert client.get("/v1/responder/chats/unclaimed").status_code == 401
-
-
-def test_get_chat_not_found(client, monkeypatch):
-    _ok_auth(monkeypatch)
-    monkeypatch.setattr(responder_routes, "user_client", lambda _t: object())
-    monkeypatch.setattr(responder_routes, "get_chat_or_none", lambda _c, _id: None)
-    resp = client.get("/v1/responder/chats/missing")
-    assert resp.status_code == 404
-
-
-def test_get_chat_success_and_user_error(client, monkeypatch):
-    _ok_auth(monkeypatch)
-    monkeypatch.setattr(responder_routes, "user_client", lambda _t: object())
-    monkeypatch.setattr(
-        responder_routes, "get_chat_or_none", lambda *_a: {"chat_id": "c1"}
-    )
-    monkeypatch.setattr(
-        responder_routes, "build_chat_detail", lambda *_a: {"chatID": "c1"}
-    )
-    assert client.get("/v1/responder/chats/c1").status_code == 200
-
-    monkeypatch.setattr(responder_routes, "require_access_token", lambda: ("tok", None))
-    monkeypatch.setattr(
-        responder_routes,
-        "require_supabase_user",
-        lambda _t: (None, ({"error": "UNAUTHORIZED"}, 401)),
-    )
-    assert client.get("/v1/responder/chats/c1").status_code == 401
-
-
-def test_claim_chat_conflict_if_already_claimed(client, monkeypatch):
-    _ok_auth(monkeypatch)
-    monkeypatch.setattr(responder_routes, "user_client", lambda _t: object())
-    monkeypatch.setattr(
-        responder_routes,
-        "get_chat_or_none",
-        lambda _c, _id: {"responder_id": "x", "status": "open"},
-    )
-    resp = client.post("/v1/responder/chats/c1/claim")
-    assert resp.status_code == 409
-
-
-def test_claim_chat_not_found_and_auth_error(client, monkeypatch):
-    _ok_auth(monkeypatch)
-    monkeypatch.setattr(responder_routes, "user_client", lambda _t: object())
-    monkeypatch.setattr(responder_routes, "get_chat_or_none", lambda *_a: None)
-    assert client.post("/v1/responder/chats/c1/claim").status_code == 404
-
-    monkeypatch.setattr(
-        responder_routes,
-        "require_access_token",
-        lambda: (None, ({"error": "UNAUTHORIZED"}, 401)),
-    )
-    assert client.post("/v1/responder/chats/c1/claim").status_code == 401
-
+def test_claimed_chats(client, monkeypatch):
+    _patch_auth(monkeypatch)
+    class FakeQ:
+        def select(self, *a): return self
+        def eq(self, *a): return self
+        def neq(self, *a): return self
+        def order(self, *a, **k): return self
+        def execute(self): return SimpleNamespace(data=[{"chat_id": "2", "status": "open"}])
+    monkeypatch.setattr(res_routes, "user_client", lambda *a: SimpleNamespace(table=lambda *a: FakeQ()))
+    resp = client.get("/v1/responder/chats")
+    assert resp.status_code == 200
 
 def test_claim_chat_success(client, monkeypatch):
-    _ok_auth(monkeypatch, user_id="res-1")
-    chain = QueryChain([{"chat_id": "c1", "status": "open"}])
-    monkeypatch.setattr(
-        responder_routes,
-        "user_client",
-        lambda _t: SimpleNamespace(table=lambda _n: chain),
-    )
-    monkeypatch.setattr(
-        responder_routes,
-        "get_chat_or_none",
-        lambda _c, _id: {
-            "responder_id": None,
-            "claim_state": "unclaimed",
-            "status": "open",
-        },
-    )
-    monkeypatch.setattr(
-        responder_routes,
-        "build_chat_detail",
-        lambda _c, chat: {"chatID": chat["chat_id"]},
-    )
-    resp = client.post("/v1/responder/chats/c1/claim")
+    _patch_auth(monkeypatch)
+    monkeypatch.setattr(res_routes, "get_chat_or_none", lambda *a: {"status": "open", "claim_state": "unclaimed"})
+    class FakeTable:
+        def update(self, *a): return self
+        def eq(self, *a): return self
+        def is_(self, *a): return self
+        def execute(self): return SimpleNamespace(data=[{"chat_id": "1"}])
+    monkeypatch.setattr(res_routes, "user_client", lambda *a: SimpleNamespace(table=lambda *a: FakeTable()))
+    resp = client.post("/v1/responder/chats/1/claim", json={"title": "A Title"})
     assert resp.status_code == 200
-    assert resp.json["chatID"] == "c1"
 
-
-def test_claim_chat_forbidden_on_permission_error(client, monkeypatch):
-    _ok_auth(monkeypatch)
-
-    class BadChain(QueryChain):
-        def execute(self):
-            raise APIError({"message": "permission denied", "code": "42501"})
-
-    monkeypatch.setattr(
-        responder_routes,
-        "user_client",
-        lambda _t: SimpleNamespace(table=lambda _n: BadChain()),
-    )
-    monkeypatch.setattr(
-        responder_routes,
-        "get_chat_or_none",
-        lambda _c, _id: {
-            "responder_id": None,
-            "claim_state": "unclaimed",
-            "status": "open",
-        },
-    )
-    resp = client.post("/v1/responder/chats/c1/claim")
-    assert resp.status_code == 403
-
-
-def test_send_message_success(client, monkeypatch):
-    _ok_auth(monkeypatch)
-    fake = QueryChain({"message_id": "m2", "sender_type": "responder", "message": "ok"})
-    monkeypatch.setattr(
-        responder_routes,
-        "user_client",
-        lambda _t: SimpleNamespace(table=lambda _n: fake),
-    )
-    monkeypatch.setattr(
-        responder_routes, "get_chat_or_none", lambda _c, _id: {"chat_id": _id}
-    )
-    monkeypatch.setattr(
-        responder_routes, "message_dict", lambda row: {"messageID": row["message_id"]}
-    )
-    resp = client.post("/v1/responder/chats/c1/messages", json={"message": "ok"})
+def test_post_message_success(client, monkeypatch):
+    _patch_auth(monkeypatch)
+    monkeypatch.setattr(res_routes, "get_chat_or_none", lambda *a: {"responder_id": "user-1", "status": "claimed"})
+    class FakeTable:
+        def insert(self, *a): return self
+        def execute(self): 
+            return SimpleNamespace(data=[{
+                "sender_type": "responder",
+                "message": "hello",
+                "tokens": 0,
+                "created_at": "2026-04-16T12:00:00+00:00"
+            }])
+    monkeypatch.setattr(res_routes, "user_client", lambda *a: SimpleNamespace(table=lambda *a: FakeTable()))
+    resp = client.post("/v1/responder/chats/1/messages", json={"message": "hello"})
     assert resp.status_code == 201
-    assert resp.json["messageID"] == "m2"
 
-
-def test_send_message_forbidden_on_api_error(client, monkeypatch):
-    _ok_auth(monkeypatch)
-
-    class BadChain(QueryChain):
-        def execute(self):
-            raise APIError({"message": "denied", "code": "42501"})
-
-    monkeypatch.setattr(
-        responder_routes,
-        "user_client",
-        lambda _t: SimpleNamespace(table=lambda _n: BadChain()),
-    )
-    monkeypatch.setattr(
-        responder_routes, "get_chat_or_none", lambda *_a: {"chat_id": "c1"}
-    )
-    resp = client.post("/v1/responder/chats/c1/messages", json={"message": "ok"})
+def test_post_message_forbidden(client, monkeypatch):
+    _patch_auth(monkeypatch)
+    monkeypatch.setattr(res_routes, "get_chat_or_none", lambda *a: {"responder_id": "other-user"})
+    resp = client.post("/v1/responder/chats/1/messages", json={"message": "hi"})
     assert resp.status_code == 403
 
+def test_get_chat_detail_success(client, monkeypatch):
+    _patch_auth(monkeypatch)
+    monkeypatch.setattr(res_routes, "get_chat_or_none", lambda *a: {"status": "open", "responder_id": "user-1"})
+    monkeypatch.setattr(res_routes, "build_chat_detail", lambda *a: {"chatID": "123"})
+    resp = client.get("/v1/responder/chats/1")
+    assert resp.status_code == 200
 
-def test_fulfill_request_missing_field(client, monkeypatch):
-    _ok_auth(monkeypatch)
-    resp = client.post("/v1/responder/chats/c1/fulfill-request", json={})
+def test_auth_failures(client, monkeypatch):
+    monkeypatch.setattr(res_routes, "require_access_token", lambda: (None, return_error("UNAUTHORIZED")))
+    resp = client.get("/v1/responder/chats/unclaimed")
+    assert resp.status_code == 401
+    
+    monkeypatch.setattr(res_routes, "require_access_token", lambda: ("tok", None))
+    monkeypatch.setattr(res_routes, "require_supabase_user", lambda t: (None, return_error("UNAUTHORIZED")))
+    resp = client.get("/v1/responder/chats/unclaimed")
+    assert resp.status_code == 401
+
+def test_api_error_handling(client, monkeypatch):
+    _patch_auth(monkeypatch)
+    def raise_api_error(*a, **k):
+        raise APIError({"message": "db error"})
+        
+    class FakeErrorQ:
+        def select(self, *a): return self
+        def eq(self, *a): return self
+        def neq(self, *a): return self
+        def order(self, *a, **k): return self
+        def execute(self): raise_api_error()
+        
+    monkeypatch.setattr(res_routes, "user_client", lambda *a: SimpleNamespace(table=lambda *a: FakeErrorQ()))
+    resp = client.get("/v1/responder/chats/unclaimed")
+    assert resp.status_code == 500
+    
+    resp2 = client.get("/v1/responder/chats")
+    assert resp2.status_code == 500
+
+def test_claim_chat_errors(client, monkeypatch):
+    _patch_auth(monkeypatch)
+    resp = client.post("/v1/responder/chats/1/claim", json={})
     assert resp.status_code == 400
-
-
-def test_fulfill_request_no_active_request_conflict(client, monkeypatch):
-    _ok_auth(monkeypatch)
-    monkeypatch.setattr(responder_routes, "user_client", lambda _t: object())
-    monkeypatch.setattr(
-        responder_routes, "get_chat_or_none", lambda _c, _id: {"chat_id": _id}
-    )
-    monkeypatch.setattr(
-        responder_routes,
-        "fulfill_request_rpc",
-        lambda _c, _id, _b: (None, "no_active_request"),
-    )
-    resp = client.post(
-        "/v1/responder/chats/c1/fulfill-request",
-        json={"responseText": "done"},
-    )
+    
+    monkeypatch.setattr(res_routes, "get_chat_or_none", lambda *a: None)
+    resp = client.post("/v1/responder/chats/1/claim", json={"title": "T"})
+    assert resp.status_code == 404
+    
+    monkeypatch.setattr(res_routes, "get_chat_or_none", lambda *a: {"status": "claimed", "claim_state": "claimed"})
+    resp = client.post("/v1/responder/chats/1/claim", json={"title": "T"})
+    assert resp.status_code == 409
+    
+    monkeypatch.setattr(res_routes, "get_chat_or_none", lambda *a: {"status": "open", "claim_state": "unclaimed"})
+    class FakeTableErr:
+        def __init__(self, c="db", code=""):
+            self.msg = c
+            self.code = code
+        def update(self, *a): return self
+        def eq(self, *a): return self
+        def is_(self, *a): return self
+        def execute(self): raise APIError({"message": self.msg, "code": self.code})
+        
+    monkeypatch.setattr(res_routes, "user_client", lambda *a: SimpleNamespace(table=lambda *a: FakeTableErr()))
+    resp = client.post("/v1/responder/chats/1/claim", json={"title": "T"})
+    assert resp.status_code == 500
+    
+    monkeypatch.setattr(res_routes, "user_client", lambda *a: SimpleNamespace(table=lambda *a: FakeTableErr(c="new row violates row-level security policy", code="42501")))
+    resp = client.post("/v1/responder/chats/1/claim", json={"title": "T"})
+    assert resp.status_code == 403
+    
+    monkeypatch.setattr(res_routes, "user_client", lambda *a: SimpleNamespace(table=lambda *a: FakeTableErr(code="23505")))
+    resp = client.post("/v1/responder/chats/1/claim", json={"title": "T"})
     assert resp.status_code == 409
 
+def test_get_chat_detail_errors(client, monkeypatch):
+    _patch_auth(monkeypatch)
+    monkeypatch.setattr(res_routes, "get_chat_or_none", lambda *a: None)
+    resp = client.get("/v1/responder/chats/1")
+    assert resp.status_code == 404
+    
+    monkeypatch.setattr(res_routes, "get_chat_or_none", lambda *a: {"status": "claimed", "responder_id": "other"})
+    resp = client.get("/v1/responder/chats/1")
+    assert resp.status_code == 403
 
-def test_fulfill_request_success(client, monkeypatch):
-    _ok_auth(monkeypatch)
-    fake = QueryChain(
-        {
-            "fulfillment_id": "f1",
-            "request_id": "r1",
-            "response_text": "done",
-            "created_at": "2026-04-01T00:00:00+00:00",
-        }
-    )
-    monkeypatch.setattr(
-        responder_routes,
-        "user_client",
-        lambda _t: SimpleNamespace(table=lambda _n: fake),
-    )
-    monkeypatch.setattr(
-        responder_routes, "get_chat_or_none", lambda _c, _id: {"chat_id": _id}
-    )
-    monkeypatch.setattr(
-        responder_routes,
-        "fulfill_request_rpc",
-        lambda _c, _id, _b: ({"fulfillment_id": "f1", "request_id": "r1"}, None),
-    )
-    monkeypatch.setattr(responder_routes, "api_ts", lambda _v: "2026-04-01T00:00:00Z")
-    resp = client.post(
-        "/v1/responder/chats/c1/fulfill-request",
-        json={"responseText": "done"},
-    )
-    assert resp.status_code == 201
-    assert resp.json["fulfillmentID"] == "f1"
+def test_post_message_errors(client, monkeypatch):
+    _patch_auth(monkeypatch)
+    resp = client.post("/v1/responder/chats/1/messages", json={})
+    assert resp.status_code == 400
+    
+    monkeypatch.setattr(res_routes, "get_chat_or_none", lambda *a: None)
+    resp = client.post("/v1/responder/chats/1/messages", json={"message": "M"})
+    assert resp.status_code == 404
+    
+    monkeypatch.setattr(res_routes, "get_chat_or_none", lambda *a: {"responder_id": "user-1", "status": "closing"})
+    resp = client.post("/v1/responder/chats/1/messages", json={"message": "M"})
+    assert resp.status_code == 400
+    
+    monkeypatch.setattr(res_routes, "get_chat_or_none", lambda *a: {"responder_id": "user-1", "status": "claimed"})
+    class FakeTableErr:
+        def insert(self, *a): return self
+        def execute(self): raise APIError({"message": "db"})
+    monkeypatch.setattr(res_routes, "user_client", lambda *a: SimpleNamespace(table=lambda *a: FakeTableErr()))
+    resp = client.post("/v1/responder/chats/1/messages", json={"message": "M"})
+    assert resp.status_code == 500
 
+def test_close_chat_errors(client, monkeypatch):
+    _patch_auth(monkeypatch)
+    monkeypatch.setattr(res_routes, "get_chat_or_none", lambda *a: None)
+    resp = client.post("/v1/responder/chats/1/close", json={})
+    assert resp.status_code == 404
+    
+    monkeypatch.setattr(res_routes, "get_chat_or_none", lambda *a: {"responder_id": "other"})
+    resp = client.post("/v1/responder/chats/1/close", json={})
+    assert resp.status_code == 403
+    
+    monkeypatch.setattr(res_routes, "get_chat_or_none", lambda *a: {"responder_id": "user-1", "status": "closing"})
+    resp = client.post("/v1/responder/chats/1/close", json={})
+    assert resp.status_code == 409
+    
+    monkeypatch.setattr(res_routes, "get_chat_or_none", lambda *a: {"responder_id": "user-1", "status": "claimed"})
+    class FakeTableErr:
+        def update(self, *a): return self
+        def eq(self, *a): return self
+        def execute(self): raise APIError({"message": "db"})
+    monkeypatch.setattr(res_routes, "user_client", lambda *a: SimpleNamespace(table=lambda *a: FakeTableErr()))
+    resp = client.post("/v1/responder/chats/1/close", json={})
+    assert resp.status_code == 500
 
-def test_responder_routes_unauthorized_paths(client, monkeypatch):
-    monkeypatch.setattr(
-        responder_routes,
-        "require_access_token",
-        lambda: (None, ({"error": "UNAUTHORIZED"}, 401)),
-    )
-    assert client.get("/v1/responder/chats").status_code == 401
-    assert client.get("/v1/responder/chats/unclaimed").status_code == 401
-    assert client.get("/v1/responder/chats/c1").status_code == 401
-
-
-def test_responder_routes_user_check_error(client, monkeypatch):
-    monkeypatch.setattr(responder_routes, "require_access_token", lambda: ("tok", None))
-    monkeypatch.setattr(
-        responder_routes,
-        "require_supabase_user",
-        lambda _t: (None, ({"error": "UNAUTHORIZED"}, 401)),
-    )
-    assert client.get("/v1/responder/chats").status_code == 401
-    assert client.post("/v1/responder/chats/c1/claim").status_code == 401
-
-
-def test_claim_chat_bad_request_and_internal_error(client, monkeypatch):
-    _ok_auth(monkeypatch)
-    monkeypatch.setattr(responder_routes, "user_client", lambda _t: object())
-    monkeypatch.setattr(
-        responder_routes,
-        "get_chat_or_none",
-        lambda *_a: {"responder_id": None, "claim_state": "claimed", "status": "open"},
-    )
-    assert client.post("/v1/responder/chats/c1/claim").status_code == 400
-
-    class BadChain(QueryChain):
-        def execute(self):
-            raise APIError({"message": "boom", "code": "XX000"})
-
-    monkeypatch.setattr(
-        responder_routes,
-        "user_client",
-        lambda _t: SimpleNamespace(table=lambda _n: BadChain()),
-    )
-    monkeypatch.setattr(
-        responder_routes,
-        "get_chat_or_none",
-        lambda *_a: {
-            "responder_id": None,
-            "claim_state": "unclaimed",
-            "status": "open",
-        },
-    )
-    assert client.post("/v1/responder/chats/c1/claim").status_code == 500
-
-
-def test_claim_chat_conflict_when_update_returns_empty(client, monkeypatch):
-    _ok_auth(monkeypatch)
-    monkeypatch.setattr(
-        responder_routes,
-        "user_client",
-        lambda _t: SimpleNamespace(table=lambda _n: QueryChain([])),
-    )
-    monkeypatch.setattr(
-        responder_routes,
-        "get_chat_or_none",
-        lambda *_a: {
-            "responder_id": None,
-            "claim_state": "unclaimed",
-            "status": "open",
-        },
-    )
-    assert client.post("/v1/responder/chats/c1/claim").status_code == 409
-
-
-def test_send_message_missing_or_not_found(client, monkeypatch):
-    _ok_auth(monkeypatch)
-    assert client.post("/v1/responder/chats/c1/messages", json={}).status_code == 400
-    monkeypatch.setattr(responder_routes, "user_client", lambda _t: object())
-    monkeypatch.setattr(responder_routes, "get_chat_or_none", lambda *_a: None)
-    assert (
-        client.post(
-            "/v1/responder/chats/c1/messages", json={"message": "x"}
-        ).status_code
-        == 404
-    )
-
-    monkeypatch.setattr(
-        responder_routes,
-        "require_access_token",
-        lambda: (None, ({"error": "UNAUTHORIZED"}, 401)),
-    )
-    assert (
-        client.post(
-            "/v1/responder/chats/c1/messages", json={"message": "x"}
-        ).status_code
-        == 401
-    )
-    monkeypatch.setattr(responder_routes, "require_access_token", lambda: ("tok", None))
-    monkeypatch.setattr(
-        responder_routes,
-        "require_supabase_user",
-        lambda _t: (None, ({"error": "UNAUTHORIZED"}, 401)),
-    )
-    assert (
-        client.post(
-            "/v1/responder/chats/c1/messages", json={"message": "x"}
-        ).status_code
-        == 401
-    )
-
-
-def test_fulfill_request_not_found_and_internal(client, monkeypatch):
-    _ok_auth(monkeypatch)
-    monkeypatch.setattr(responder_routes, "user_client", lambda _t: object())
-    monkeypatch.setattr(responder_routes, "get_chat_or_none", lambda *_a: None)
-    assert (
-        client.post(
-            "/v1/responder/chats/c1/fulfill-request", json={"responseText": "x"}
-        ).status_code
-        == 404
-    )
-
-    monkeypatch.setattr(
-        responder_routes, "get_chat_or_none", lambda *_a: {"chat_id": "c1"}
-    )
-    monkeypatch.setattr(
-        responder_routes, "fulfill_request_rpc", lambda *_a: (None, "rpc_failed")
-    )
-    assert (
-        client.post(
-            "/v1/responder/chats/c1/fulfill-request", json={"responseText": "x"}
-        ).status_code
-        == 500
-    )
-
-    fake = QueryChain(None)
-    monkeypatch.setattr(
-        responder_routes,
-        "user_client",
-        lambda _t: SimpleNamespace(table=lambda _n: fake),
-    )
-    monkeypatch.setattr(
-        responder_routes,
-        "fulfill_request_rpc",
-        lambda *_a: ({"fulfillment_id": "f1", "request_id": "r1"}, None),
-    )
-    assert (
-        client.post(
-            "/v1/responder/chats/c1/fulfill-request", json={"responseText": "x"}
-        ).status_code
-        == 500
-    )
-
-
-def test_fulfill_request_auth_user_and_select_error_paths(client, monkeypatch):
-    monkeypatch.setattr(
-        responder_routes,
-        "require_access_token",
-        lambda: (None, ({"error": "UNAUTHORIZED"}, 401)),
-    )
-    assert (
-        client.post(
-            "/v1/responder/chats/c1/fulfill-request", json={"responseText": "x"}
-        ).status_code
-        == 401
-    )
-
-    monkeypatch.setattr(responder_routes, "require_access_token", lambda: ("tok", None))
-    monkeypatch.setattr(
-        responder_routes,
-        "require_supabase_user",
-        lambda _t: (None, ({"error": "UNAUTHORIZED"}, 401)),
-    )
-    assert (
-        client.post(
-            "/v1/responder/chats/c1/fulfill-request", json={"responseText": "x"}
-        ).status_code
-        == 401
-    )
-
-    _ok_auth(monkeypatch)
-    monkeypatch.setattr(
-        responder_routes, "get_chat_or_none", lambda *_a: {"chat_id": "c1"}
-    )
-    monkeypatch.setattr(
-        responder_routes,
-        "fulfill_request_rpc",
-        lambda *_a: ({"fulfillment_id": "f1", "request_id": "r1"}, None),
-    )
-
-    class BadChain(QueryChain):
-        def execute(self):
-            raise APIError({"message": "x"})
-
-    monkeypatch.setattr(
-        responder_routes,
-        "user_client",
-        lambda _t: SimpleNamespace(table=lambda _n: BadChain()),
-    )
-    assert (
-        client.post(
-            "/v1/responder/chats/c1/fulfill-request", json={"responseText": "x"}
-        ).status_code
-        == 500
-    )
+def test_close_chat_success(client, monkeypatch):
+    _patch_auth(monkeypatch)
+    monkeypatch.setattr(res_routes, "get_chat_or_none", lambda *a: {"responder_id": "user-1", "status": "claimed"})
+    class FakeTable:
+        def update(self, *a): return self
+        def eq(self, *a): return self
+        def is_(self, *a): return self
+        def execute(self): return SimpleNamespace(data=[{"chat_id": "1"}])
+    monkeypatch.setattr(res_routes, "user_client", lambda *a: SimpleNamespace(table=lambda *a: FakeTable()))
+    resp = client.post("/v1/responder/chats/1/close", json={})
+    assert resp.status_code == 200
