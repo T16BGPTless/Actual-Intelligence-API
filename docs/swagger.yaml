@@ -1148,6 +1148,9 @@ paths:
                 tokens:
                   type: number
                   example: 100
+                cost:
+                  type: float
+                  example: 9.99
               required:
                 - tokens
 
