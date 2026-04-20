@@ -15,5 +15,8 @@ def service_client() -> Client:
 
 def user_client(access_token: str) -> Client:
     client = create_client(supabase_url(), supabase_anon_key())
-    client.postgrest.auth(access_token)
+
+    # Ensure we pass it as an Authorization header Bearer <jwt>
+    client.postgrest.headers["Authorization"] = f"Bearer {access_token}"
+
     return client
