@@ -19,7 +19,6 @@ import LogoutIcon from '@mui/icons-material/Logout';
 import TokenIcon from '@mui/icons-material/Token';
 import ForumIcon from '@mui/icons-material/Forum';
 import PsychologyIcon from '@mui/icons-material/Psychology';
-import AccountCircleIcon from '@mui/icons-material/AccountCircle';
 import SettingsIcon from '@mui/icons-material/Settings';
 
 // Assets
@@ -96,7 +95,9 @@ function Navbar() {
   }, [token, email]);
 
   const logout = () => {
-    localStorage.clear();
+    localStorage.removeItem("token");
+    localStorage.removeItem("username");
+    localStorage.removeItem("email");
     navigate("/login");
   };
 
@@ -226,12 +227,6 @@ function Navbar() {
 
                 <Button startIcon={<PsychologyIcon />} sx={getNavButtonStyle("/tasks/claim")} onClick={() => navigate("/tasks/claim")}>
                   Task List
-                </Button>
-
-                <Divider orientation="vertical" flexItem sx={{ bgcolor: borderColor, width: '1px', my: 2 }} />
-
-                <Button startIcon={<AccountCircleIcon />} sx={getNavButtonStyle("/profile")} onClick={() => navigate("/profile")}>
-                  Profile
                 </Button>
 
                 <Divider orientation="vertical" flexItem sx={{ bgcolor: borderColor, width: '1px', my: 2 }} />

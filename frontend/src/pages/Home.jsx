@@ -126,35 +126,6 @@ export default function Home() {
     }
   };
 
-  const userButtonStyle = {
-    ml: 2, px: 3, py: 0.5,
-    borderRadius: 0,
-    color: bannerText,
-    border: `2px solid ${bannerOutline}`,
-    fontWeight: 900,
-    fontSize: { xs: '1.2rem', md: '2.2rem' },
-    lineHeight: 1.2,
-    letterSpacing: animationsEnabled ? '2px' : '4px',
-    transition: animationsEnabled ? 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)' : 'none',
-    textTransform: 'uppercase',
-    position: 'relative',
-    display: 'flex',
-    alignItems: 'center',
-    '&:hover': {
-      borderColor: bannerText,
-      bgcolor: 'rgba(255, 255, 255, 0.1)',
-      transform: animationsEnabled ? 'translateY(-2px)' : 'none',
-      letterSpacing: animationsEnabled ? '6px' : '4px',
-      pl: animationsEnabled ? 5 : 3,
-    },
-    '&::before': {
-      content: '">"',
-      position: 'absolute', left: '15px', opacity: 0,
-      transition: animationsEnabled ? 'all 0.3s ease' : 'none',
-    },
-    '&:hover::before': { opacity: animationsEnabled ? 1 : 0 }
-  };
-
   const buttonBase = (isPrimary) => ({
     py: 2, px: 4, width: "100%", maxWidth: "280px", borderRadius: 0,
     textTransform: "uppercase", fontSize: "0.9rem", fontWeight: 900,
@@ -229,9 +200,9 @@ export default function Home() {
 
               <Box sx={{ flex: 3, p: 6, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', color: bannerText, zIndex: 1 }}>
                   <Typography variant="overline" sx={{ letterSpacing: 3, opacity: 0.7, mb: 1, color: bannerText }}>Connection Established</Typography>
-                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flexWrap: 'wrap' }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flexWrap: 'wrap', gap: 1.5 }}>
                     <Typography variant="h3" sx={{ fontWeight: 900, letterSpacing: '-1px', color: bannerText }}>WELCOME,</Typography>
-                    <Button onClick={() => navigate("/profile")} sx={userButtonStyle}>{username}</Button>
+                    <Typography variant="h3" sx={{ fontWeight: 900, letterSpacing: '-1px', color: bannerText, textTransform: 'uppercase' }}>{username}</Typography>
                   </Box>
                   <Typography variant="body1" sx={{ color: bannerText, opacity: 0.8, mt: 3, maxWidth: '500px' }}>
                       Systems are live. Interface with the network to start processing tasks.

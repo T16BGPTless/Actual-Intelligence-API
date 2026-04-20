@@ -7,7 +7,6 @@ import Navbar from "./components/Navbar";
 import Home from "./pages/Home";
 import Login from "./pages/auth/Login";
 import Register from "./pages/auth/Register";
-import Profile from "./pages/auth/Profile";
 import Tokens from "./pages/Tokens";
 import Settings from "./pages/Settings";
 import ChatList from "./pages/ChatList";
@@ -86,13 +85,9 @@ function App() {
             body: { 
               backgroundColor: active.bg,
               color: active.text,
-              transition: localStorage.getItem("ui-animations") === "false" ? "none !important" : "background-color 0.3s ease"
             }
           },
-        },
-        MuiButton: { styleOverrides: { root: { borderRadius: 0, fontWeight: 900 } } },
-        MuiPaper: { styleOverrides: { root: { backgroundImage: 'none', borderRadius: 0 } } },
-        MuiOutlinedInput: { styleOverrides: { root: { borderRadius: 0 } } }
+        }
       },
     });
   }, [textScale, themeMode, forceDark]);
@@ -108,7 +103,6 @@ function App() {
               <Route path="/" element={<Home />} />
               <Route path="/login" element={<Login />} />
               <Route path="/register" element={<Register />} />
-              <Route path="/profile" element={<Profile />} />
               <Route path="/tokens" element={<Tokens />} />
               <Route path="/settings" element={
                 <Settings 
