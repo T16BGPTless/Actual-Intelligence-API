@@ -24,7 +24,7 @@ import SettingsIcon from '@mui/icons-material/Settings';
 // Assets
 import catLogo from "../assets/cat1.png";
 
-const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || "https://ai-api.gptless.au";
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 
 function Navbar() {
   const navigate = useNavigate();
