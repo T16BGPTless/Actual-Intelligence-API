@@ -11,9 +11,10 @@ import Profile from "./pages/auth/Profile";
 import Tokens from "./pages/Tokens";
 import Settings from "./pages/Settings";
 import ChatList from "./pages/ChatList";
-import ChatPage from "./pages/ChatPage";
+import ResponderChatPage from "./pages/responder/ChatPage";
 import ChatCreate from "./pages/requester/ChatCreate";
 import TaskList from "./pages/responder/TaskList";
+import RequesterChatPage from "./pages/requester/ChatPage";
 
 function App() {
   const [textScale, setTextScale] = useState(localStorage.getItem("ui-scale") || "medium");
@@ -118,7 +119,8 @@ function App() {
               } />
               <Route path="/chat" element={<ChatList />} />
               <Route path="/chat/new" element={<ChatCreate />} />
-              <Route path="/chat/:id" element={<ChatPage />} />
+              <Route path="/chat/:id" element={<RequesterChatPage />} />
+              <Route path="/tasks/:id" element={<ResponderChatPage />} />
               <Route path="/tasks/claim" element={<TaskList />} />
             </Routes>
           </Container>

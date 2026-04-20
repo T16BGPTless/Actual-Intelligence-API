@@ -25,7 +25,7 @@ import SettingsIcon from '@mui/icons-material/Settings';
 // Assets
 import catLogo from "../assets/cat1.png";
 
-const BACKEND_URL = "http://localhost:5000";
+const BACKEND_URL = "";
 
 function Navbar() {
   const navigate = useNavigate();
@@ -218,7 +218,7 @@ function Navbar() {
               </>
             ) : (
               <>
-                <Button startIcon={<ForumIcon />} sx={getNavButtonStyle("/chat/new")} onClick={() => navigate("/chat/new")}>
+                <Button startIcon={<ForumIcon />} sx={getNavButtonStyle("/chat")} onClick={() => navigate("/chat")}>
                   My Chats
                 </Button>
 
