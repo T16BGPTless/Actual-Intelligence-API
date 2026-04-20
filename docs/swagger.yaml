@@ -1149,10 +1149,13 @@ paths:
                   type: number
                   example: 100
                 cost:
-                  type: float
-                  example: 9.99
+                  type: number
+                  format: float
+                  multipleOf: 0.01
+                  example: 200.00
               required:
                 - tokens
+                - cost
 
       responses:
         "200":

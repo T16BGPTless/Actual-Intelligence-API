@@ -1,5 +1,10 @@
 """Token management endpoints."""
 
+import re
+import requests
+import os
+
+from datetime import datetime, UTC
 from http import HTTPStatus
 
 from flask import Blueprint, jsonify, request
@@ -38,6 +43,67 @@ def _account_for_user(client, user_id: str):
     )
     # Return the first dictionary if it exists, otherwise return None
     return res[0] if res else None
+
+
+def _send_invoice(customer_name, email, tokens, cost, api_token, gst):
+    """Runs the invoice generation synchronously with a 2-minute timeout."""
+    try:
+        today_str = datetime.now(UTC).strftime("%Y-%m-%d")
+
+        invoice_payload = {
+            "InvoiceData": {
+                "supplier": {
+                    "name": "Actual Intelligence",
+                    "ABN": "6767676767",
+                    "streetName": "UNSW, Anzac Parade",
+                    "city": "Sydney",
+                    "postalCode": "2000",
+                    "country": "AU",
+                },
+                "customer": {
+                    "name": customer_name,
+                },
+                "issueDate": today_str,
+                "dueDate": today_str,
+                "totalAmount": cost * (1 + gst / 100),
+                "currency": "AUD",
+                "lines": [
+                    {
+                        "lineId": "1",
+                        "description": f"{tokens} tokens",
+                        "quantity": 1,
+                        "unitPrice": cost,
+                        "lineTotal": cost,
+                    }
+                ],
+                "gstPercent": gst,
+            }
+        }
+
+        resp = requests.post(
+            "https://api.gptless.au/v2/invoices/generate",
+            json=invoice_payload,
+            headers={"APIToken": str(api_token)},
+            timeout=120,  # 2 minute wait time
+        )
+
+        # Extract the invoice ID using regex
+        invoice_ids = re.findall(r"<cbc:ID>([0-9]+)[^0-9]", resp.text)
+        if invoice_ids:
+            # Guarantee invoice_id is a string
+            invoice_id = str(invoice_ids[0]).strip()[:5]
+
+            # Send the email notification
+            notify_payload = {"recipientEmail": str(email)}
+            requests.post(
+                f"https://api.gptless.au/v2/invoices/notify/{invoice_id}",
+                json=notify_payload,
+                headers={"APIToken": str(api_token)},
+                timeout=120,  # 2 minute wait time
+            )
+
+    except Exception as e:
+        print(f"Invoice error: {str(e)}")
 
 
 @tokens_bp.route("/v1/tokens", methods=["GET"])
@@ -91,6 +157,9 @@ def buy_tokens():
     tokens = _require_positive_tokens(body)
     if tokens is None:
         return return_error("BAD_REQUEST", "Missing or invalid data: tokens required.")
+    cost = body.get("cost")
+    if cost is None:
+        return return_error("BAD_REQUEST", "Missing or invalid data: cost required.")
 
     client = service_client()
     try:
@@ -135,10 +204,19 @@ def buy_tokens():
     except APIError as e:
         return return_error("INTERNAL_SERVER_ERROR", str(e))
 
+    customer_name = "Customer"
+    if hasattr(user, "user_metadata") and user.user_metadata:
+        customer_name = user.user_metadata.get("name") or user.email
+
+    api_token = os.environ.get("INVOICE_API_TOKEN")
+
+    _send_invoice(customer_name, user.email, tokens, cost, api_token, 10)
+
     return (
         jsonify(
             {
                 "tokensAdded": tokens,
+                "cost": cost,
                 "tokenBalance": updated_balance,
             }
         ),
