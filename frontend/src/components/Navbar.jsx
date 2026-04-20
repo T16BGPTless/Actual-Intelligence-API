@@ -74,8 +74,7 @@ function Navbar() {
       if (token) {
         try {
           const res = await axios.get(`${BACKEND_URL}/v1/tokens`, {
-            headers: { Authorization: `Bearer ${token}` },
-            params: { accountName: email } 
+            headers: { AccessToken: accessToken, },
           });
           setBalance(res.data.tokenBalance);
         } catch (err) {
@@ -92,7 +91,7 @@ function Navbar() {
       clearInterval(interval);
       window.removeEventListener("storage", handleSync);
     };
-  }, [token, email]);
+  }, token);
 
   const logout = () => {
     localStorage.removeItem("token");

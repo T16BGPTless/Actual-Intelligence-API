@@ -12,8 +12,7 @@ import {
   Divider,
   InputAdornment,
   IconButton,
-  useTheme,
-  CircularProgress
+  useTheme
 } from "@mui/material";
 
 // Icons
@@ -90,7 +89,7 @@ function Login() {
     }
   };
 
-  const actionButtonStyle = (isPrimary) => ({
+  const buttonBase = (isPrimary) => ({
     py: 1.5,
     borderRadius: '0px',
     textTransform: 'uppercase',
@@ -105,8 +104,8 @@ function Login() {
     '&:hover': {
       bgcolor: theme.palette.text.primary, 
       color: theme.palette.background.default,
-      transform: (animationsEnabled && !loading) ? 'translateY(-2px)' : 'none',
-      boxShadow: (animationsEnabled && !loading) ? `4px 4px 0px ${isDarkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'}` : 'none',
+      transform: animationsEnabled ? 'translateY(-2px)' : 'none',
+      boxShadow: animationsEnabled ? `4px 4px 0px ${isDarkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'}` : 'none',
     }
   });
 
@@ -131,30 +130,11 @@ function Login() {
         </Typography>
 
         <Box component="form" onSubmit={handleLogin} sx={{ width: '100%' }}>
-          <TextField 
-            placeholder="EMAIL ADDRESS" 
-            fullWidth 
-            value={email} 
-            onChange={(e) => setEmail(e.target.value)} 
-            error={!!errors.email} 
-            helperText={errors.email} 
-            disabled={loading}
-            sx={{ ...inputStyles, ...fadeSlide(150) }} 
-            inputProps={{ style: { fontWeight: 700, textTransform: 'uppercase' }}} 
-          />
-          <TextField 
-            placeholder="PASSWORD" 
-            type={showPassword ? 'text' : 'password'} 
-            fullWidth 
-            value={password} 
-            onChange={(e) => setPassword(e.target.value)} 
-            error={!!errors.password} 
-            helperText={errors.password} 
-            disabled={loading}
-            sx={{ ...inputStyles, mb: 3, ...fadeSlide(200) }}
+          <TextField placeholder="EMAIL ADDRESS" fullWidth value={email} onChange={(e) => setEmail(e.target.value)} error={!!errors.email} helperText={errors.email} sx={{ ...inputStyles, ...fadeSlide(150) }} inputProps={{ style: { fontWeight: 700, textTransform: 'uppercase' }}} />
+          <TextField placeholder="PASSWORD" type={showPassword ? 'text' : 'password'} fullWidth value={password} onChange={(e) => setPassword(e.target.value)} error={!!errors.password} helperText={errors.password} sx={{ ...inputStyles, mb: 3, ...fadeSlide(200) }}
             slotProps={{ input: { endAdornment: (
               <InputAdornment position="end">
-                <IconButton onClick={handleClickShowPassword} edge="end" sx={{ color: theme.palette.text.primary }} disabled={loading}>
+                <IconButton onClick={handleClickShowPassword} edge="end" sx={{ color: theme.palette.text.primary }}>
                   {showPassword ? <VisibilityOff /> : <Visibility />}
                 </IconButton>
               </InputAdornment>
@@ -163,34 +143,13 @@ function Login() {
 
           {errors.general && <Typography variant="caption" sx={{ color: theme.palette.error.main, fontWeight: 900, mb: 2, display: 'block', textAlign: 'center', textTransform: 'uppercase' }}>{errors.general}</Typography>}
 
-          <Button 
-            variant="contained" 
-            fullWidth 
-            type="submit" 
-            disableElevation 
-            disabled={loading}
-            sx={{ ...actionButtonStyle(true), ...fadeSlide(250) }}
-          >
-            {loading ? (
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                <CircularProgress size={20} color="inherit" />
-                VERIFYING...
-              </Box>
-            ) : (
-              "Log In"
-            )}
+          <Button variant="contained" fullWidth type="submit" disableElevation sx={{ ...buttonBase(true), ...fadeSlide(250) }}>
+            Log In
           </Button>
 
           <Divider sx={{ my: 4, fontWeight: 800, textTransform: 'uppercase', color: theme.palette.text.disabled, ...fadeSlide(300) }}>or</Divider>
 
-          <Button 
-            variant="outlined" 
-            fullWidth 
-            onClick={() => navigate("/register")} 
-            disableElevation 
-            disabled={loading}
-            sx={{ ...actionButtonStyle(false), ...fadeSlide(350) }}
-          >
+          <Button variant="outlined" fullWidth onClick={() => navigate("/register")} disableElevation sx={{ ...buttonBase(false), ...fadeSlide(350) }}>
             Create Account
           </Button>
 
