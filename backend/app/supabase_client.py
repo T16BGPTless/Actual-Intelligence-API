@@ -15,5 +15,18 @@ def service_client() -> Client:
 
 def user_client(access_token: str) -> Client:
     client = create_client(supabase_url(), supabase_anon_key())
+
+    # 1) What your tests expect
+    #    (call auth() exactly with the provided token)
     client.postgrest.auth(access_token)
+
+    # 2) Extra safety for real SDKs:
+    #    If the postgrest client exposes headers, force Authorization too.
+    try:
+        token = access_token.removeprefix("Bearer ").strip()
+        if hasattr(client.postgrest, "headers"):
+            client.postgrest.headers["Authorization"] = f"Bearer {token}"
+    except Exception:
+        pass
+
     return client

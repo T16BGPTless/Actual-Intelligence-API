@@ -6,7 +6,7 @@ from flask import Blueprint, jsonify, request
 from postgrest.exceptions import APIError
 
 from app.routes.helpers import require_access_token, require_supabase_user, return_error
-from app.supabase_client import service_client
+from app.supabase_client import service_client, user_client
 
 tokens_bp = Blueprint("tokens", __name__)
 
@@ -54,8 +54,8 @@ def get_tokens():
     client = service_client()
     try:
         account = _account_for_user(client, str(user.id))
-    except APIError:
-        return return_error("INTERNAL_SERVER_ERROR")
+    except APIError as e:
+        return return_error("INTERNAL_SERVER_ERROR", str(e))
 
     if not account:
         return return_error("NOT_FOUND", "User account cannot be found")
@@ -67,10 +67,10 @@ def get_tokens():
             .eq("account_id", account["account_id"])
             .maybe_single()
         )
-    except APIError:
-        return return_error("INTERNAL_SERVER_ERROR")
+        balance = 0 if balance_row is None else int(balance_row["balance"] or 0)
+    except APIError as e:
+        return return_error("INTERNAL_SERVER_ERROR", str(e))
 
-    balance = int((balance_row or {}).get("balance") or 0)
     return (
         jsonify({"tokenBalance": balance}),
         HTTPStatus.OK,
@@ -94,8 +94,8 @@ def buy_tokens():
     client = service_client()
     try:
         account = _account_for_user(client, str(user.id))
-    except APIError:
-        return return_error("INTERNAL_SERVER_ERROR")
+    except APIError as e:
+        return return_error("INTERNAL_SERVER_ERROR", str(e))
 
     if not account:
         return return_error("NOT_FOUND", "User account cannot be found")
@@ -128,8 +128,8 @@ def buy_tokens():
                 "created_by": str(user.id),
             }
         ).execute()
-    except APIError:
-        return return_error("INTERNAL_SERVER_ERROR")
+    except APIError as e:
+        return return_error("INTERNAL_SERVER_ERROR", str(e))
 
     return (
         jsonify(
@@ -159,8 +159,8 @@ def redeem_tokens():
     client = service_client()
     try:
         account = _account_for_user(client, str(user.id))
-    except APIError:
-        return return_error("INTERNAL_SERVER_ERROR")
+    except APIError as e:
+        return return_error("INTERNAL_SERVER_ERROR", str(e))
 
     if not account:
         return return_error("NOT_FOUND", "User account cannot be found")
@@ -173,8 +173,8 @@ def redeem_tokens():
             .eq("account_id", account_id)
             .maybe_single()
         )
-    except APIError:
-        return return_error("INTERNAL_SERVER_ERROR")
+    except APIError as e:
+        return return_error("INTERNAL_SERVER_ERROR", str(e))
 
     current_balance = int((current or {}).get("balance") or 0)
     if current_balance < tokens:
@@ -194,8 +194,8 @@ def redeem_tokens():
                 "created_by": str(user.id),
             }
         ).execute()
-    except APIError:
-        return return_error("INTERNAL_SERVER_ERROR")
+    except APIError as e:
+        return return_error("INTERNAL_SERVER_ERROR", str(e))
 
     return (
         jsonify(
