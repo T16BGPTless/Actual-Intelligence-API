@@ -12,7 +12,8 @@ import {
   Divider,
   InputAdornment,
   IconButton,
-  useTheme
+  useTheme,
+  CircularProgress
 } from "@mui/material";
 
 // Icons
@@ -32,6 +33,7 @@ function Login() {
   const [showPassword, setShowPassword] = useState(false);
   const [errors, setErrors] = useState({});
   const [mounted, setMounted] = useState(false);
+  const [loading, setLoading] = useState(false);
   
   const [animationsEnabled, setAnimationsEnabled] = useState(localStorage.getItem("ui-animations") !== "false");
 
@@ -48,6 +50,8 @@ function Login() {
     if (!password) tempErrors.password = "Password is required";
     if (Object.keys(tempErrors).length > 0) { setErrors(tempErrors); return; }
 
+    setLoading(true);
+
     try {
       const res = await axios.post(`${BACKEND_URL}/v1/auth/login`, { email, password });
       const { accessToken, user } = res.data;
@@ -62,6 +66,8 @@ function Login() {
       if (lowerMsg.includes("user") || lowerMsg.includes("email")) setErrors({ email: msg });
       else if (lowerMsg.includes("password")) setErrors({ password: msg });
       else setErrors({ general: msg });
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -95,11 +101,12 @@ function Login() {
     color: isPrimary ? theme.palette.background.default : theme.palette.text.primary,
     border: `2px solid ${theme.palette.text.primary}`,
     transition: animationsEnabled ? 'all 0.2s ease' : 'none',
+    opacity: loading ? 0.7 : 1,
     '&:hover': {
       bgcolor: theme.palette.text.primary, 
       color: theme.palette.background.default,
-      transform: animationsEnabled ? 'translateY(-2px)' : 'none',
-      boxShadow: animationsEnabled ? `4px 4px 0px ${isDarkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'}` : 'none',
+      transform: (animationsEnabled && !loading) ? 'translateY(-2px)' : 'none',
+      boxShadow: (animationsEnabled && !loading) ? `4px 4px 0px ${isDarkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'}` : 'none',
     }
   });
 
@@ -124,11 +131,30 @@ function Login() {
         </Typography>
 
         <Box component="form" onSubmit={handleLogin} sx={{ width: '100%' }}>
-          <TextField placeholder="EMAIL ADDRESS" fullWidth value={email} onChange={(e) => setEmail(e.target.value)} error={!!errors.email} helperText={errors.email} sx={{ ...inputStyles, ...fadeSlide(150) }} inputProps={{ style: { fontWeight: 700, textTransform: 'uppercase' }}} />
-          <TextField placeholder="PASSWORD" type={showPassword ? 'text' : 'password'} fullWidth value={password} onChange={(e) => setPassword(e.target.value)} error={!!errors.password} helperText={errors.password} sx={{ ...inputStyles, mb: 3, ...fadeSlide(200) }}
+          <TextField 
+            placeholder="EMAIL ADDRESS" 
+            fullWidth 
+            value={email} 
+            onChange={(e) => setEmail(e.target.value)} 
+            error={!!errors.email} 
+            helperText={errors.email} 
+            disabled={loading}
+            sx={{ ...inputStyles, ...fadeSlide(150) }} 
+            inputProps={{ style: { fontWeight: 700, textTransform: 'uppercase' }}} 
+          />
+          <TextField 
+            placeholder="PASSWORD" 
+            type={showPassword ? 'text' : 'password'} 
+            fullWidth 
+            value={password} 
+            onChange={(e) => setPassword(e.target.value)} 
+            error={!!errors.password} 
+            helperText={errors.password} 
+            disabled={loading}
+            sx={{ ...inputStyles, mb: 3, ...fadeSlide(200) }}
             slotProps={{ input: { endAdornment: (
               <InputAdornment position="end">
-                <IconButton onClick={handleClickShowPassword} edge="end" sx={{ color: theme.palette.text.primary }}>
+                <IconButton onClick={handleClickShowPassword} edge="end" sx={{ color: theme.palette.text.primary }} disabled={loading}>
                   {showPassword ? <VisibilityOff /> : <Visibility />}
                 </IconButton>
               </InputAdornment>
@@ -137,13 +163,34 @@ function Login() {
 
           {errors.general && <Typography variant="caption" sx={{ color: theme.palette.error.main, fontWeight: 900, mb: 2, display: 'block', textAlign: 'center', textTransform: 'uppercase' }}>{errors.general}</Typography>}
 
-          <Button variant="contained" fullWidth type="submit" disableElevation sx={{ ...actionButtonStyle(true), ...fadeSlide(250) }}>
-            Log In
+          <Button 
+            variant="contained" 
+            fullWidth 
+            type="submit" 
+            disableElevation 
+            disabled={loading}
+            sx={{ ...actionButtonStyle(true), ...fadeSlide(250) }}
+          >
+            {loading ? (
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                <CircularProgress size={20} color="inherit" />
+                VERIFYING...
+              </Box>
+            ) : (
+              "Log In"
+            )}
           </Button>
 
           <Divider sx={{ my: 4, fontWeight: 800, textTransform: 'uppercase', color: theme.palette.text.disabled, ...fadeSlide(300) }}>or</Divider>
 
-          <Button variant="outlined" fullWidth onClick={() => navigate("/register")} disableElevation sx={{ ...actionButtonStyle(false), ...fadeSlide(350) }}>
+          <Button 
+            variant="outlined" 
+            fullWidth 
+            onClick={() => navigate("/register")} 
+            disableElevation 
+            disabled={loading}
+            sx={{ ...actionButtonStyle(false), ...fadeSlide(350) }}
+          >
             Create Account
           </Button>
 
