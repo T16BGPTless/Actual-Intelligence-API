@@ -54,10 +54,10 @@ def _send_invoice(customer_name, email, tokens, cost, api_token, gst):
             "InvoiceData": {
                 "supplier": {
                     "name": "Actual Intelligence",
-                    "ABN": "6767676767",
+                    "ABN": "0000000000",
                     "streetName": "UNSW, Anzac Parade",
-                    "city": "Sydney",
-                    "postalCode": "2000",
+                    "city": "Kensinton",
+                    "postalCode": "2033",
                     "country": "AU",
                 },
                 "customer": {
