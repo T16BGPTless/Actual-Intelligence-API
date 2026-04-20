@@ -84,7 +84,7 @@ def _send_invoice(customer_name, email, tokens, cost, api_token, gst):
             "https://api.gptless.au/v2/invoices/generate",
             json=invoice_payload,
             headers={"APIToken": str(api_token)},
-            timeout=120,  # 2 minute wait time
+            timeout=60,  # 2 minute wait time
         )
 
         # Extract the invoice ID using regex
@@ -99,7 +99,7 @@ def _send_invoice(customer_name, email, tokens, cost, api_token, gst):
                 f"https://api.gptless.au/v2/invoices/notify/{invoice_id}",
                 json=notify_payload,
                 headers={"APIToken": str(api_token)},
-                timeout=120,  # 2 minute wait time
+                timeout=60,  # 2 minute wait time
             )
 
     except Exception as e:
