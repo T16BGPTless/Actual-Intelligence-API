@@ -57,14 +57,18 @@ def require_access_token():
     return None, return_error("UNAUTHORIZED")
 
 
-def require_supabase_user(access_token: str) -> tuple[object | None, tuple[Response, int] | None]:
+def require_supabase_user(
+    access_token: str,
+) -> tuple[object | None, tuple[Response, int] | None]:
     try:
         # Temporary debug (safe: no full token)
         token = access_token or ""
         print(
             "GoTrue token debug:",
-            "len=", len(token),
-            "prefix=", token[:20],
+            "len=",
+            len(token),
+            "prefix=",
+            token[:20],
         )
 
         res = anon_client().auth.get_user(access_token)

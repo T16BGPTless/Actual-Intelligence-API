@@ -447,5 +447,3 @@ def test_user_payload_falls_back_to_metadata_on_profile_error(monkeypatch):
     payload = auth_routes._user_payload("tok", _fake_user())
     assert payload["username"] == "u1"
     assert payload["name"] == "User One"
-
-
