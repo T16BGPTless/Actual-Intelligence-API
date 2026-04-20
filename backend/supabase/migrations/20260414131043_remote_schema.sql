@@ -115,202 +115,6 @@ CREATE TYPE "public"."token_txn_type" AS ENUM (
 ALTER TYPE "public"."token_txn_type" OWNER TO "postgres";
 
 
-CREATE OR REPLACE FUNCTION "public"."create_chat_with_initial_request"("p_title" "text", "p_category" "text", "p_request_text" "text", "p_tokens_to_spend" bigint) RETURNS "jsonb"
-    LANGUAGE "plpgsql"
-    SET "search_path" TO 'public'
-    AS $$
-declare
-  v_chat_id text;
-  v_request_id text;
-  v_uid uuid := auth.uid();
-begin
-  if v_uid is null then
-    raise exception 'not authenticated';
-  end if;
-
-  if p_request_text is null or length(trim(p_request_text)) = 0 then
-    raise exception 'invalid_request_text';
-  end if;
-
-  if p_tokens_to_spend is null or p_tokens_to_spend <= 0 then
-    raise exception 'invalid_tokens';
-  end if;
-
-  insert into public.chats (requester_id, title, category, status, claim_state)
-  values (
-    v_uid,
-    coalesce(nullif(trim(p_title), ''), 'New Request'),
-    coalesce(nullif(trim(p_category), ''), 'general'),
-    'open',
-    'unclaimed'
-  )
-  returning chat_id into v_chat_id;
-
-  insert into public.requests (chat_id, requester_id, request_text, tokens_to_spend, status)
-  values (v_chat_id, v_uid, trim(p_request_text), p_tokens_to_spend, 'pending')
-  returning request_id into v_request_id;
-
-  return jsonb_build_object(
-    'ok', true,
-    'chat_id', v_chat_id,
-    'request_id', v_request_id
-  );
-end;
-$$;
-
-
-ALTER FUNCTION "public"."create_chat_with_initial_request"("p_title" "text", "p_category" "text", "p_request_text" "text", "p_tokens_to_spend" bigint) OWNER TO "postgres";
-
-
-CREATE OR REPLACE FUNCTION "public"."fulfill_chat_active_request"("p_chat_id" "text", "p_response_text" "text", "p_attachments" "jsonb" DEFAULT '[]'::"jsonb") RETURNS "jsonb"
-    LANGUAGE "plpgsql"
-    SET "search_path" TO 'public'
-    AS $$
-declare
-  v_req public.requests%rowtype;
-  v_fid text;
-  v_uid uuid := auth.uid();
-begin
-  if v_uid is null then
-    raise exception 'not authenticated';
-  end if;
-
-  if p_response_text is null or length(trim(p_response_text)) = 0 then
-    raise exception 'invalid_response_text';
-  end if;
-
-  select * into v_req
-  from public.requests r
-  where r.chat_id = p_chat_id
-    and r.status in ('pending', 'in_progress')
-  order by r.created_at asc
-  limit 1
-  for update;
-
-  if v_req.request_id is null then
-    return jsonb_build_object('ok', false, 'error', 'no_active_request');
-  end if;
-
-  insert into public.fulfillments (request_id, chat_id, responder_id, response_text, attachments)
-  values (v_req.request_id, p_chat_id, v_uid, trim(p_response_text), coalesce(p_attachments, '[]'::jsonb))
-  returning fulfillment_id into v_fid;
-
-  update public.requests
-  set status = 'fulfilled'
-  where request_id = v_req.request_id;
-
-  return jsonb_build_object(
-    'ok', true,
-    'fulfillment_id', v_fid,
-    'request_id', v_req.request_id
-  );
-end;
-$$;
-
-
-ALTER FUNCTION "public"."fulfill_chat_active_request"("p_chat_id" "text", "p_response_text" "text", "p_attachments" "jsonb") OWNER TO "postgres";
-
-
-CREATE OR REPLACE FUNCTION "public"."handle_new_user"() RETURNS "trigger"
-    LANGUAGE "plpgsql" SECURITY DEFINER
-    SET "search_path" TO 'public'
-    AS $$
-declare
-  v_username text;
-  v_account_id uuid;
-begin
-  v_username := coalesce(
-    new.raw_user_meta_data ->> 'username',
-    split_part(new.email, '@', 1),
-    'user_' || substr(new.id::text, 1, 8)
-  );
-
-  insert into public.profiles (user_id, username, display_name)
-  values (
-    new.id,
-    v_username,
-    coalesce(new.raw_user_meta_data ->> 'name', split_part(new.email, '@', 1))
-  )
-  on conflict (user_id) do nothing;
-
-  insert into public.user_roles (user_id, role)
-  values (new.id, 'requester'), (new.id, 'responder')
-  on conflict do nothing;
-
-  insert into public.accounts (account_name, created_by)
-  values (v_username, new.id)
-  on conflict (account_name) do nothing
-  returning account_id into v_account_id;
-
-  if v_account_id is null then
-    select a.account_id
-      into v_account_id
-      from public.accounts a
-     where a.created_by = new.id
-     order by a.created_at asc
-     limit 1;
-  end if;
-
-  if v_account_id is not null then
-    insert into public.token_balances (account_id, balance)
-    values (v_account_id, 0)
-    on conflict (account_id) do nothing;
-  end if;
-
-  return new;
-end;
-$$;
-
-
-ALTER FUNCTION "public"."handle_new_user"() OWNER TO "postgres";
-
-
-CREATE OR REPLACE FUNCTION "public"."has_role"("required_role" "public"."app_role") RETURNS boolean
-    LANGUAGE "sql" STABLE
-    SET "search_path" TO ''
-    AS $$
-  select exists (
-    select 1
-    from public.user_roles ur
-    where ur.user_id = auth.uid()
-      and ur.role = required_role
-  );
-$$;
-
-
-ALTER FUNCTION "public"."has_role"("required_role" "public"."app_role") OWNER TO "postgres";
-
-
-CREATE OR REPLACE FUNCTION "public"."is_account_owner"("p_account_id" "uuid") RETURNS boolean
-    LANGUAGE "sql" STABLE
-    SET "search_path" TO ''
-    AS $$
-  select exists (
-    select 1
-    from public.accounts a
-    where a.account_id = p_account_id
-      and a.created_by = auth.uid()
-  );
-$$;
-
-
-ALTER FUNCTION "public"."is_account_owner"("p_account_id" "uuid") OWNER TO "postgres";
-
-
-CREATE OR REPLACE FUNCTION "public"."is_chat_participant"("p_chat_id" "text") RETURNS boolean
-    LANGUAGE "sql" STABLE
-    SET "search_path" TO ''
-    AS $$
-  select exists (
-    select 1
-    from public.chats c
-    where c.chat_id = p_chat_id
-      and (c.requester_id = auth.uid() or c.responder_id = auth.uid())
-  );
-$$;
-
-
-ALTER FUNCTION "public"."is_chat_participant"("p_chat_id" "text") OWNER TO "postgres";
 
 SET default_tablespace = '';
 
@@ -522,6 +326,202 @@ CREATE INDEX "idx_token_transactions_account_created_at" ON "public"."token_tran
 CREATE INDEX "idx_user_roles_user_id" ON "public"."user_roles" USING "btree" ("user_id");
 
 
+CREATE OR REPLACE FUNCTION "public"."create_chat_with_initial_request"("p_title" "text", "p_category" "text", "p_request_text" "text", "p_tokens_to_spend" bigint) RETURNS "jsonb"
+    LANGUAGE "plpgsql"
+    SET "search_path" TO 'public'
+    AS $$
+declare
+  v_chat_id text;
+  v_request_id text;
+  v_uid uuid := auth.uid();
+begin
+  if v_uid is null then
+    raise exception 'not authenticated';
+  end if;
+
+  if p_request_text is null or length(trim(p_request_text)) = 0 then
+    raise exception 'invalid_request_text';
+  end if;
+
+  if p_tokens_to_spend is null or p_tokens_to_spend <= 0 then
+    raise exception 'invalid_tokens';
+  end if;
+
+  insert into public.chats (requester_id, title, category, status, claim_state)
+  values (
+    v_uid,
+    coalesce(nullif(trim(p_title), ''), 'New Request'),
+    coalesce(nullif(trim(p_category), ''), 'general'),
+    'open',
+    'unclaimed'
+  )
+  returning chat_id into v_chat_id;
+
+  insert into public.requests (chat_id, requester_id, request_text, tokens_to_spend, status)
+  values (v_chat_id, v_uid, trim(p_request_text), p_tokens_to_spend, 'pending')
+  returning request_id into v_request_id;
+
+  return jsonb_build_object(
+    'ok', true,
+    'chat_id', v_chat_id,
+    'request_id', v_request_id
+  );
+end;
+$$;
+
+
+ALTER FUNCTION "public"."create_chat_with_initial_request"("p_title" "text", "p_category" "text", "p_request_text" "text", "p_tokens_to_spend" bigint) OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."fulfill_chat_active_request"("p_chat_id" "text", "p_response_text" "text", "p_attachments" "jsonb" DEFAULT '[]'::"jsonb") RETURNS "jsonb"
+    LANGUAGE "plpgsql"
+    SET "search_path" TO 'public'
+    AS $$
+declare
+  v_req public.requests%rowtype;
+  v_fid text;
+  v_uid uuid := auth.uid();
+begin
+  if v_uid is null then
+    raise exception 'not authenticated';
+  end if;
+
+  if p_response_text is null or length(trim(p_response_text)) = 0 then
+    raise exception 'invalid_response_text';
+  end if;
+
+  select * into v_req
+  from public.requests r
+  where r.chat_id = p_chat_id
+    and r.status in ('pending', 'in_progress')
+  order by r.created_at asc
+  limit 1
+  for update;
+
+  if v_req.request_id is null then
+    return jsonb_build_object('ok', false, 'error', 'no_active_request');
+  end if;
+
+  insert into public.fulfillments (request_id, chat_id, responder_id, response_text, attachments)
+  values (v_req.request_id, p_chat_id, v_uid, trim(p_response_text), coalesce(p_attachments, '[]'::jsonb))
+  returning fulfillment_id into v_fid;
+
+  update public.requests
+  set status = 'fulfilled'
+  where request_id = v_req.request_id;
+
+  return jsonb_build_object(
+    'ok', true,
+    'fulfillment_id', v_fid,
+    'request_id', v_req.request_id
+  );
+end;
+$$;
+
+
+ALTER FUNCTION "public"."fulfill_chat_active_request"("p_chat_id" "text", "p_response_text" "text", "p_attachments" "jsonb") OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."handle_new_user"() RETURNS "trigger"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO 'public'
+    AS $$
+declare
+  v_username text;
+  v_account_id uuid;
+begin
+  v_username := coalesce(
+    new.raw_user_meta_data ->> 'username',
+    split_part(new.email, '@', 1),
+    'user_' || substr(new.id::text, 1, 8)
+  );
+
+  insert into public.profiles (user_id, username, display_name)
+  values (
+    new.id,
+    v_username,
+    coalesce(new.raw_user_meta_data ->> 'name', split_part(new.email, '@', 1))
+  )
+  on conflict (user_id) do nothing;
+
+  insert into public.user_roles (user_id, role)
+  values (new.id, 'requester'), (new.id, 'responder')
+  on conflict do nothing;
+
+  insert into public.accounts (account_name, created_by)
+  values (v_username, new.id)
+  on conflict (account_name) do nothing
+  returning account_id into v_account_id;
+
+  if v_account_id is null then
+    select a.account_id
+      into v_account_id
+      from public.accounts a
+     where a.created_by = new.id
+     order by a.created_at asc
+     limit 1;
+  end if;
+
+  if v_account_id is not null then
+    insert into public.token_balances (account_id, balance)
+    values (v_account_id, 0)
+    on conflict (account_id) do nothing;
+  end if;
+
+  return new;
+end;
+$$;
+
+
+ALTER FUNCTION "public"."handle_new_user"() OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."has_role"("required_role" "public"."app_role") RETURNS boolean
+    LANGUAGE "sql" STABLE
+    SET "search_path" TO ''
+    AS $$
+  select exists (
+    select 1
+    from public.user_roles ur
+    where ur.user_id = auth.uid()
+      and ur.role = required_role
+  );
+$$;
+
+
+ALTER FUNCTION "public"."has_role"("required_role" "public"."app_role") OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."is_account_owner"("p_account_id" "uuid") RETURNS boolean
+    LANGUAGE "sql" STABLE
+    SET "search_path" TO ''
+    AS $$
+  select exists (
+    select 1
+    from public.accounts a
+    where a.account_id = p_account_id
+      and a.created_by = auth.uid()
+  );
+$$;
+
+
+ALTER FUNCTION "public"."is_account_owner"("p_account_id" "uuid") OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."is_chat_participant"("p_chat_id" "text") RETURNS boolean
+    LANGUAGE "sql" STABLE
+    SET "search_path" TO ''
+    AS $$
+  select exists (
+    select 1
+    from public.chats c
+    where c.chat_id = p_chat_id
+      and (c.requester_id = auth.uid() or c.responder_id = auth.uid())
+  );
+$$;
+
+
+ALTER FUNCTION "public"."is_chat_participant"("p_chat_id" "text") OWNER TO "postgres";
 
 ALTER TABLE ONLY "public"."accounts"
     ADD CONSTRAINT "accounts_created_by_fkey" FOREIGN KEY ("created_by") REFERENCES "auth"."users"("id") ON DELETE RESTRICT;
@@ -1480,6 +1480,7 @@ begin
   );
 end;
 $$;
+
 CREATE POLICY "chats_close_responder" ON "public"."chats" FOR UPDATE TO "authenticated" USING (("responder_id" = "auth"."uid"()) AND ("status" = 'claimed'::"public"."chat_status")) WITH CHECK (("status" = 'closing'::"public"."chat_status"));
 CREATE OR REPLACE FUNCTION public.post_requester_message(p_chat_id text, p_message text, p_tokens bigint)
 RETURNS jsonb
