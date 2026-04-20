@@ -91,7 +91,7 @@ def _send_invoice(customer_name, email, tokens, cost, api_token, gst):
         invoice_ids = re.findall(r"<cbc:ID>([0-9]+)[^0-9]", resp.text)
         if invoice_ids:
             # Guarantee invoice_id is a string
-            invoice_id = str(invoice_ids[0])
+            invoice_id = str(invoice_ids[0]).strip()[:5]
 
             # Send the email notification
             notify_payload = {"recipientEmail": str(email)}
