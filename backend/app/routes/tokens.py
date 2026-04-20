@@ -6,7 +6,7 @@ from flask import Blueprint, jsonify, request
 from postgrest.exceptions import APIError
 
 from app.routes.helpers import require_access_token, require_supabase_user, return_error
-from app.supabase_client import service_client, user_client
+from app.supabase_client import service_client, user_client, anon_client
 
 tokens_bp = Blueprint("tokens", __name__)
 
@@ -61,13 +61,18 @@ def get_tokens():
         return return_error("NOT_FOUND", "User account cannot be found")
 
     try:
-        balance_row = _execute_data(
+        balance_res = _execute_data(
             client.table("token_balances")
             .select("balance")
             .eq("account_id", account["account_id"])
-            .maybe_single()
+            .limit(1)
+            # DO NOT use maybe_single()
+            .execute()
         )
-        balance = 0 if balance_row is None else int(balance_row["balance"] or 0)
+        # balance_res should be a list (0 or 1 row)
+        balance = 0
+        if balance_res:
+            balance = int(balance_res[0]["balance"] or 0)
     except APIError as e:
         return return_error("INTERNAL_SERVER_ERROR", str(e))
 
