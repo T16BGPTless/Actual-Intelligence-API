@@ -22,8 +22,6 @@ const CATEGORIES = [
   "Programming",
   "Writing",
   "Design",
-  "Research",
-  "Other",
 ];
 
 const TOKEN_PRESETS = [1, 5, 10, 25, 50, 100];
@@ -33,6 +31,7 @@ export default function ChatCreate() {
   const theme = useTheme();
 
   const [category, setCategory] = useState("General");
+  const [customCategory, setCustomCategory] = useState("");
   const [requestText, setRequestText] = useState("");
   const [tokensToSpend, setTokensToSpend] = useState(10);
   const [customToken, setCustomToken] = useState("");
@@ -80,7 +79,7 @@ export default function ChatCreate() {
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
-          category: category || undefined,
+          category: (customCategory.trim() || category) || undefined,
           requestText: requestText.trim(),
           tokensToSpend,
         }),
@@ -168,34 +167,53 @@ export default function ChatCreate() {
         }}
       >
         {/* Categories */}
-        <Box sx={{ mb: 4 }}>
-          <Typography variant="overline" sx={{ fontSize: "0.65rem", fontWeight: 700, letterSpacing: 3, color: mutedColor, display: "block", mb: 1.5 }}>
-            Category
-          </Typography>
-          <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
-            {CATEGORIES.map((c) => (
-              <Chip
-                key={c}
-                label={c}
-                onClick={() => setCategory(c)}
+          <Box sx={{ mb: 4 }}>
+            <Typography variant="overline" sx={{ fontSize: "0.65rem", fontWeight: 700, letterSpacing: 3, color: mutedColor, display: "block", mb: 1.5 }}>
+              Category
+            </Typography>
+            <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, flexWrap: "wrap" }}>
+              {CATEGORIES.map((c) => {
+                const selected = category === c && customCategory === "";
+                return (
+                  <Chip
+                    key={c}
+                    label={c}
+                    onClick={() => { setCategory(c); setCustomCategory(""); }}
+                    sx={{
+                      borderRadius: "99px",
+                      fontWeight: 600,
+                      fontSize: "0.75rem",
+                      height: 28,
+                      border: `0.5px solid ${selected ? borderColor : `${borderColor}33`}`,
+                      bgcolor: selected ? theme.palette.text.primary : "transparent",
+                      color: selected ? theme.palette.background.default : mutedColor,
+                    }}
+                  />
+                );
+              })}
+              <Box
                 sx={{
-                  borderRadius: "99px",
-                  fontWeight: 600,
-                  fontSize: "0.75rem",
-                  height: 28,
+                  height: 28, px: 1, borderRadius: "99px",
+                  border: `1.5px solid ${customCategory ? borderColor : `${borderColor}28`}`,
+                  bgcolor: customCategory ? theme.palette.text.primary : "transparent",
+                  display: "flex", alignItems: "center", width: 110,
                   transition: animationsEnabled ? "all 0.15s ease" : "none",
-                  border: `0.5px solid ${category === c ? borderColor : `${borderColor}33`}`,
-                  bgcolor: category === c ? theme.palette.text.primary : "transparent",
-                  color: category === c ? theme.palette.background.default : mutedColor,
-                  "&:hover": {
-                    bgcolor: category === c ? theme.palette.text.primary : `${borderColor}11`,
-                    color: category === c ? theme.palette.background.default : theme.palette.text.primary,
-                  },
+                  "&:hover": { border: `1.5px solid ${borderColor}77` },
                 }}
-              />
-            ))}
+              >
+                <input
+                  value={customCategory}
+                  onChange={(e) => { setCustomCategory(e.target.value); setCategory(e.target.value); }}
+                  placeholder="custom"
+                  style={{
+                    width: "100%", border: "none", outline: "none", background: "transparent",
+                    textAlign: "center", fontWeight: 600, fontSize: "0.75rem", fontFamily: "inherit",
+                    color: customCategory ? theme.palette.background.default : theme.palette.text.secondary,
+                  }}
+                />
+              </Box>
+            </Box>
           </Box>
-        </Box>
 
         {/* Request textarea */}
         <Box sx={{ mb: 4 }}>
