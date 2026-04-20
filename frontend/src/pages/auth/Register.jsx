@@ -21,7 +21,7 @@ import VisibilityOff from '@mui/icons-material/VisibilityOff';
 import BugReportIcon from '@mui/icons-material/BugReport';
 import MotionPhotosOffIcon from '@mui/icons-material/MotionPhotosOff';
 
-const BACKEND_URL = "http://localhost:5000";
+const BACKEND_URL = "";
 
 function Register() {
   const navigate = useNavigate();
