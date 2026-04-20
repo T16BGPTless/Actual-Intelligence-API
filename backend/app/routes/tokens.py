@@ -65,15 +65,15 @@ def _send_invoice(customer_name, email, tokens, cost, api_token, gst):
                 },
                 "issueDate": today_str,
                 "dueDate": today_str,
-                "totalAmount": cost * (1 + gst / 100),
+                "totalAmount": cost,
                 "currency": "AUD",
                 "lines": [
                     {
                         "lineId": "1",
                         "description": f"{tokens} tokens",
                         "quantity": 1,
-                        "unitPrice": cost,
-                        "lineTotal": cost,
+                        "unitPrice": cost * (1 / (1+gst/100)),
+                        "lineTotal": cost * (1 / (1+gst/100)),
                     }
                 ],
                 "gstPercent": gst,
