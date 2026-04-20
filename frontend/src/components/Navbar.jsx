@@ -219,7 +219,7 @@ function Navbar() {
               </>
             ) : (
               <>
-                <Button startIcon={<ForumIcon />} sx={getNavButtonStyle("/chat/new")} onClick={() => navigate("/chat/new")}>
+                <Button startIcon={<ForumIcon />} sx={getNavButtonStyle("/chat")} onClick={() => navigate("/chat")}>
                   My Chats
                 </Button>
 
