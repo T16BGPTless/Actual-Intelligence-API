@@ -45,7 +45,7 @@ def _account_for_user(client, user_id: str):
     return res[0] if res else None
 
 
-def _send_invoice(customer_name, email, tokens, cost, api_token):
+def _send_invoice(customer_name, email, tokens, cost, api_token, gst):
     """Runs the invoice generation synchronously with a 2-minute timeout."""
     try:
         today_str = datetime.now(UTC).strftime("%Y-%m-%d")
@@ -65,7 +65,7 @@ def _send_invoice(customer_name, email, tokens, cost, api_token):
                 },
                 "issueDate": today_str,
                 "dueDate": today_str,
-                "totalAmount": cost,
+                "totalAmount": cost * (1 + gst / 100),
                 "currency": "AUD",
                 "lines": [
                     {
@@ -76,7 +76,7 @@ def _send_invoice(customer_name, email, tokens, cost, api_token):
                         "lineTotal": cost,
                     }
                 ],
-                "gstPercent": 10,
+                "gstPercent": gst,
             }
         }
 
@@ -210,7 +210,7 @@ def buy_tokens():
 
     api_token = os.environ.get("INVOICE_API_TOKEN")
 
-    _send_invoice(customer_name, user.email, tokens, cost, api_token)
+    _send_invoice(customer_name, user.email, tokens, cost, api_token, 10)
 
     return (
         jsonify(
