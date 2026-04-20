@@ -23,6 +23,8 @@ import DoNotDisturbOnIcon from "@mui/icons-material/DoNotDisturbOn";
 
 import catBg from "../assets/cat2.png";
 
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
+
 const STATUS_COLORS = {
   open:    { bg: "#e8f5e9", text: "#2e7d32", dark_bg: "#1b5e2033", dark_text: "#66bb6a" },
   closed:  { bg: "#fafafa", text: "#9e9e9e", dark_bg: "#ffffff11", dark_text: "#757575" },
@@ -66,7 +68,7 @@ export default function ChatList() {
     setLoading(true);
     const token = localStorage.getItem("token");
     try {
-      const res = await fetch("/v1/requester/chats", {
+      const res = await fetch(`${BACKEND_URL}/v1/requester/chats`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       const data = await res.json();
@@ -85,7 +87,7 @@ export default function ChatList() {
     setClosingId(chatID);
     const token = localStorage.getItem("token");
     try {
-      await fetch(`/v1/requester/chats/${chatID}/close`, {
+      await fetch(`${BACKEND_URL}/v1/requester/chats/${chatID}/close`, {
         method: "POST",
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -93,7 +95,7 @@ export default function ChatList() {
         prev.map((c) => c.chatID === chatID ? { ...c, status: "closed" } : c)
       );
     } catch {
-      // silently fail — chat will refresh next time
+      // silently fail
     } finally {
       setClosingId(null);
       setConfirmId(null);

@@ -15,6 +15,8 @@ import SendIcon from "@mui/icons-material/Send";
 import catLeft from "../../assets/cat3.png";
 import catRight from "../../assets/cat7.png";
 
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
+
 const CATEGORIES = [
   "General",
   "Mathematics",
@@ -72,7 +74,7 @@ export default function ChatCreate() {
     const token = localStorage.getItem("token");
 
     try {
-      const res = await fetch("/v1/requester/chats", {
+      const res = await fetch(`${BACKEND_URL}/v1/requester/chats`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

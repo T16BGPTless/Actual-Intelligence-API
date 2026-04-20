@@ -22,6 +22,7 @@ import StarBorderIcon from "@mui/icons-material/StarBorder";
 import DoNotDisturbOnIcon from "@mui/icons-material/DoNotDisturbOn";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 const TOKEN_PRESETS = [1, 5, 10, 25, 50, 100];
 
 function formatTime(iso) {
@@ -76,14 +77,14 @@ export default function RequesterChatPage() {
 
   const fetchChat = async () => {
     try {
-      const res = await fetch(`/v1/requester/chats/${id}`, { headers: authHeader() });
+      const res = await fetch(`${BACKEND_URL}/v1/requester/chats/${id}`, { headers: authHeader() });
       const data = await res.json();
       if (!res.ok) { setLoadError("Chat not found."); return; }
       setChat(data);
       if (data.status === "closed") {
         setRatingSubmitted(true);
         setShowRating(false);
-    }
+      }
     } catch {
       setLoadError("Network error.");
     } finally {
@@ -116,7 +117,7 @@ export default function RequesterChatPage() {
     setSending(true);
     setSendError("");
     try {
-      const res = await fetch(`/v1/requester/chats/${id}/messages`, {
+      const res = await fetch(`${BACKEND_URL}/v1/requester/chats/${id}/messages`, {
         method: "POST",
         headers: { ...authHeader(), "Content-Type": "application/json" },
         body: JSON.stringify({ message: message.trim() }),
@@ -137,7 +138,7 @@ export default function RequesterChatPage() {
     if (!tokenText.trim()) return;
     setAddingTokens(true);
     try {
-      await fetch(`/v1/requester/chats/${id}/requests`, {
+      await fetch(`${BACKEND_URL}/v1/requester/chats/${id}/requests`, {
         method: "POST",
         headers: { ...authHeader(), "Content-Type": "application/json" },
         body: JSON.stringify({ requestText: tokenText.trim(), tokensToSpend: tokenAmount }),
@@ -155,17 +156,11 @@ export default function RequesterChatPage() {
   const handleCloseChat = async () => {
     setClosing(true);
     try {
-      await fetch(`/v1/requester/chats/${id}/review`, {
+      await fetch(`${BACKEND_URL}/v1/requester/chats/${id}/review`, {
         method: "POST",
-        headers: {
-        ...authHeader(),
-        "Content-Type": "application/json",
-      },
-  body: JSON.stringify({
-    rating: starRating,
-    resolved: thumbRating === "yes",
-  }),
-});
+        headers: { ...authHeader(), "Content-Type": "application/json" },
+        body: JSON.stringify({ rating: starRating, resolved: thumbRating === "yes" }),
+      });
       setCloseDialog(false);
       fetchChat();
     } finally {
@@ -175,14 +170,7 @@ export default function RequesterChatPage() {
 
   const isTokenPreset = TOKEN_PRESETS.includes(tokenAmount) && customToken === "";
   const isClosed = chat?.status === "closed" || chat?.status === "closing";
-  const totalTokens =
-    chat?.tokensSpent ??
-    chat?.tokens ??
-    chat?.requests?.reduce(
-        (s, r) => s + (r.tokensSpent || r.tokens_spent || r.tokensToSpend || 0),
-        0
-    ) ??
-    0;
+  const totalTokens = chat?.tokensSpent ?? chat?.tokens ?? chat?.requests?.reduce((s, r) => s + (r.tokensSpent || r.tokens_spent || r.tokensToSpend || 0), 0) ?? 0;
   const responderName = chat?.responderUsername;
 
   // Build timeline
@@ -190,19 +178,11 @@ export default function RequesterChatPage() {
   let lastDate = null;
 
   const initialRequestEvent = chat?.requests?.[0] ? {
-    _type: "message",
-    _ts: chat.requests[0].createdAt,
-    messageID: "initial-request",
-    senderType: "requester",
-    message: chat.requests[0].requestText,
-    createdAt: chat.requests[0].createdAt,
+    _type: "message", _ts: chat.requests[0].createdAt, messageID: "initial-request",
+    senderType: "requester", message: chat.requests[0].requestText, createdAt: chat.requests[0].createdAt,
   } : chat?.originalRequest ? {
-    _type: "message",
-    _ts: chat.createdAt,
-    messageID: "initial-request",
-    senderType: "requester",
-    message: chat.originalRequest,
-    createdAt: chat.createdAt,
+    _type: "message", _ts: chat.createdAt, messageID: "initial-request",
+    senderType: "requester", message: chat.originalRequest, createdAt: chat.createdAt,
   } : null;
 
   const allEvents = [
@@ -217,24 +197,14 @@ export default function RequesterChatPage() {
     timeline.push(ev);
   });
 
-  if (loading) {
-    return (
-      <Box sx={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: "60vh" }}>
-        <CircularProgress sx={{ color: borderColor }} />
-      </Box>
-    );
-  }
+  if (loading) return <Box sx={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: "60vh" }}><CircularProgress sx={{ color: borderColor }} /></Box>;
 
-  if (loadError || !chat) {
-    return (
-      <Box sx={{ textAlign: "center", py: 10 }}>
-        <Typography sx={{ fontWeight: 700, opacity: 0.5 }}>{loadError || "Chat not found."}</Typography>
-        <Button onClick={() => navigate("/chat")} sx={{ mt: 2, borderRadius: "99px", textTransform: "none", fontWeight: 600 }}>
-          ← Back
-        </Button>
-      </Box>
-    );
-  }
+  if (loadError || !chat) return (
+    <Box sx={{ textAlign: "center", py: 10 }}>
+      <Typography sx={{ fontWeight: 700, opacity: 0.5 }}>{loadError || "Chat not found."}</Typography>
+      <Button onClick={() => navigate("/chat")} sx={{ mt: 2, borderRadius: "99px", textTransform: "none", fontWeight: 600 }}>← Back</Button>
+    </Box>
+  );
 
   return (
     <Box sx={{ maxWidth: 720, mx: "auto", display: "flex", flexDirection: "column", height: "calc(100vh - 160px)" }}>
@@ -314,23 +284,17 @@ export default function RequesterChatPage() {
                   ))}
                 </Box>
                 <Button onClick={async () => {
-                    setRatingSubmitted(true);
-                    setShowRating(false);
-                    try {
-                      await fetch(`/v1/requester/chats/${id}/review`, {
-                        method: "POST",
-                        headers: {
-                            ...authHeader(),
-                            "Content-Type": "application/json",
-                        },
-                        body: JSON.stringify({
-                            rating: starRating,
-                            resolved: thumbRating === "yes",
-                        }),
-                      });
-                    } catch { /* already closing */ }
-                    fetchChat();
-                  }}
+                  setRatingSubmitted(true);
+                  setShowRating(false);
+                  try {
+                    await fetch(`${BACKEND_URL}/v1/requester/chats/${id}/review`, {
+                      method: "POST",
+                      headers: { ...authHeader(), "Content-Type": "application/json" },
+                      body: JSON.stringify({ rating: starRating, resolved: thumbRating === "yes" }),
+                    });
+                  } catch { }
+                  fetchChat();
+                }}
                   sx={{ borderRadius: "99px", px: 4, py: 0.75, fontWeight: 700, fontSize: "0.82rem", textTransform: "none", bgcolor: theme.palette.text.primary, color: theme.palette.background.default, "&:hover": { bgcolor: theme.palette.text.secondary } }}>
                   Submit rating
                 </Button>
