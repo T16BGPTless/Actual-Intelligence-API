@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
+import { ScrollSection, getSubSectionStyle } from "../helpers.jsx"
 
 // MUI
 import {
@@ -22,47 +23,11 @@ import catRight from "../assets/cat7.png";
 import catEconomy from "../assets/cat5.png";
 import catIntro from "../assets/cat2.png"; 
 
-const ScrollSection = ({ children, index, delay = 0 }) => {
-  const [isVisible, setIsVisible] = useState(false);
-  const domRef = useRef();
-  const animationsEnabled = localStorage.getItem("ui-animations") !== "false";
-
-  useEffect(() => {
-    const observer = new IntersectionObserver(entries => {
-      entries.forEach(entry => setIsVisible(entry.isIntersecting));
-    }, { threshold: 0.1 });
-    const currentRef = domRef.current;
-    if (currentRef) observer.observe(currentRef);
-    return () => { if (currentRef) observer.unobserve(currentRef); };
-  }, []);
-
-  const isEven = index % 2 === 0;
-
-  return (
-    <Box
-      ref={domRef}
-      sx={{
-        opacity: animationsEnabled ? (isVisible ? 1 : 0) : 1,
-        transform: animationsEnabled 
-          ? (isVisible ? "translateX(0)" : `translateX(${isEven ? "-50px" : "50px"})`)
-          : "none",
-        transition: animationsEnabled ? "all 0.8s cubic-bezier(0.16, 1, 0.3, 1), transform 0.4s ease-out" : "none",
-        transitionDelay: animationsEnabled ? `${delay}ms` : "0ms",
-        width: "100%",
-        '&:hover': {
-           transform: (animationsEnabled && isVisible) ? 'scale(1.01)' : undefined,
-           zIndex: 5,
-        }
-      }}
-    >
-      {children}
-    </Box>
-  );
-};
-
 export default function Home() {
   const navigate = useNavigate();
   const theme = useTheme(); 
+
+  const subSectionStyle = getSubSectionStyle();
   
   const currentThemeId = localStorage.getItem("ui-theme") || "default";
   const isDarkMode = theme.palette.mode === 'dark';
@@ -107,23 +72,6 @@ export default function Home() {
       setIsShaking(false);
       setIsPurring(false);
     }, 600);
-  };
-
-  const subSectionStyle = {
-    flex: 1,
-    transition: animationsEnabled ? 'all 0.4s cubic-bezier(0.165, 0.84, 0.44, 1)' : 'none',
-    position: 'relative',
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'center', 
-    justifyContent: 'center', 
-    bgcolor: theme.palette.background.paper,
-    '&:hover': {
-      bgcolor: theme.palette.background.paper,
-      zIndex: 10,
-      transform: animationsEnabled ? 'scale(1.03)' : 'none',
-      boxShadow: (animationsEnabled) ? sectionShadow : 'none',
-    }
   };
 
   const buttonBase = (isPrimary) => ({
