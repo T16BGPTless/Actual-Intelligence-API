@@ -39,7 +39,6 @@ def _account_for_user(client, user_id: str):
         .eq("created_by", user_id)
         .order("created_at")
         .limit(1)
-        .maybe_single()
     )
 
 @tokens_bp.route("/v1/tokens", methods=["GET"])
@@ -66,8 +65,6 @@ def get_tokens():
             .select("balance")
             .eq("account_id", account["account_id"])
             .limit(1)
-            # DO NOT use maybe_single()
-            .execute()
         )
         # balance_res should be a list (0 or 1 row)
         balance = 0
@@ -111,7 +108,7 @@ def buy_tokens():
             client.table("token_balances")
             .select("balance")
             .eq("account_id", account_id)
-            .maybe_single()
+            .limit(1)
         )
         current_balance = int((current or {}).get("balance") or 0)
         updated_balance = current_balance + tokens
@@ -176,7 +173,7 @@ def redeem_tokens():
             client.table("token_balances")
             .select("balance")
             .eq("account_id", account_id)
-            .maybe_single()
+            .limit(1)
         )
     except APIError as e:
         return return_error("INTERNAL_SERVER_ERROR", str(e))
