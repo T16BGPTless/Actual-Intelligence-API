@@ -138,10 +138,10 @@ export default function RequesterChatPage() {
     if (!tokenText.trim()) return;
     setAddingTokens(true);
     try {
-      await fetch(`${BACKEND_URL}/v1/requester/chats/${id}/requests`, {
+      await fetch(`${BACKEND_URL}/v1/requester/chats/${id}/messages`, {
         method: "POST",
         headers: { ...authHeader(), "Content-Type": "application/json" },
-        body: JSON.stringify({ requestText: tokenText.trim(), tokensToSpend: tokenAmount }),
+        body: JSON.stringify({ message: tokenText.trim(), tokensToSpend: tokenAmount }),
       });
       setTokenDialog(false);
       setTokenText("");

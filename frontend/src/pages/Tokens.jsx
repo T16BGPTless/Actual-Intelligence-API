@@ -115,7 +115,7 @@ function Tokens() {
     setRedeemAmount("");
   };
 
-  const handleBuy = async (tokenAmount) => {
+  const handleBuy = async (tokenAmount, cost) => {
     try {
       setLoading(true);
       setError("");
@@ -132,6 +132,7 @@ function Tokens() {
         `${BACKEND_URL}/v1/tokens/buy`,
         {
           tokens: tokenAmount,
+          cost: cost,
         },
         {
           headers: {
@@ -156,7 +157,7 @@ function Tokens() {
   const confirmPurchase = async () => {
     if (!selectedPackage) return;
 
-    const success = await handleBuy(selectedPackage.tokens);
+    const success = await handleBuy(selectedPackage.tokens, selectedPackage.price);
     if (success) {
       closeConfirmPurchase();
     }
