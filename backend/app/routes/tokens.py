@@ -54,10 +54,10 @@ def _send_invoice(customer_name, email, tokens, cost, api_token, gst):
             "InvoiceData": {
                 "supplier": {
                     "name": "Actual Intelligence",
-                    "ABN": "6767676767",
+                    "ABN": "0000000000",
                     "streetName": "UNSW, Anzac Parade",
-                    "city": "Sydney",
-                    "postalCode": "2000",
+                    "city": "Kensinton",
+                    "postalCode": "2033",
                     "country": "AU",
                 },
                 "customer": {
@@ -84,14 +84,14 @@ def _send_invoice(customer_name, email, tokens, cost, api_token, gst):
             "https://api.gptless.au/v2/invoices/generate",
             json=invoice_payload,
             headers={"APIToken": str(api_token)},
-            timeout=120,  # 2 minute wait time
+            timeout=60,  # 2 minute wait time
         )
 
         # Extract the invoice ID using regex
-        invoice_ids = re.findall(r"<cbc:ID>([0-9]+)[^0-9]", resp.text)
+        invoice_ids = re.findall(r"<cbc:ID>([0-9]+)</cbc:ID>", resp.text)
         if invoice_ids:
             # Guarantee invoice_id is a string
-            invoice_id = str(invoice_ids[0]).strip()[:5]
+            invoice_id = str(invoice_ids[0])
 
             # Send the email notification
             notify_payload = {"recipientEmail": str(email)}
@@ -99,7 +99,7 @@ def _send_invoice(customer_name, email, tokens, cost, api_token, gst):
                 f"https://api.gptless.au/v2/invoices/notify/{invoice_id}",
                 json=notify_payload,
                 headers={"APIToken": str(api_token)},
-                timeout=120,  # 2 minute wait time
+                timeout=60,  # 2 minute wait time
             )
 
     except Exception as e:
