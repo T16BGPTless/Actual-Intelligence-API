@@ -146,7 +146,7 @@ class TestSendInvoice:
         post_calls = []
 
         class FakeResp:
-            text = "<cbc:ID>12345</cbc:ID>x"
+            text = "<cbc:ID>12345</cbc:ID>"
 
         def fake_post(url, json=None, headers=None, timeout=None):
             post_calls.append(url)
@@ -658,27 +658,6 @@ class TestRedeemTokens:
         """APIError raised during the UPDATE/INSERT write phase returns 500."""
         _ok_auth(monkeypatch)
 
-        write_count = [0]
-
-        def mixed_table(name):
-            if name == "accounts":
-                return QueryChain([{"account_id": "a1", "account_name": "Main", "created_by": "u1"}])
-            if name == "token_balances":
-                return QueryChain([{"balance": 100}])
-            # token_transactions or update path
-            class ErrChain(QueryChain):
-                def execute(self):
-                    raise APIError({"message": "write error"})
-            return ErrChain()
-
-        monkeypatch.setattr(
-            tokens_routes,
-            "service_client",
-            lambda: SimpleNamespace(table=mixed_table),
-        )
-        # The update on token_balances goes through the balances chain which succeeds,
-        # but we need to intercept update().execute() — use a patched chain instead.
-        # Re-patch with a chain where update raises
         class UpdatingErrChain(QueryChain):
             def update(self, *_a, **_k):
                 class Inner(QueryChain):
@@ -686,7 +665,7 @@ class TestRedeemTokens:
                         raise APIError({"message": "write error"})
                 return Inner()
 
-        def mixed_table2(name):
+        def mixed_table(name):
             if name == "accounts":
                 return QueryChain([{"account_id": "a1", "account_name": "Main", "created_by": "u1"}])
             return UpdatingErrChain([{"balance": 100}])
@@ -694,7 +673,7 @@ class TestRedeemTokens:
         monkeypatch.setattr(
             tokens_routes,
             "service_client",
-            lambda: SimpleNamespace(table=mixed_table2),
+            lambda: SimpleNamespace(table=mixed_table),
         )
         resp = client.post("/v1/tokens/redeem", json={"tokens": 5})
         assert resp.status_code == 500

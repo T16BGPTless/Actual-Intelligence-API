@@ -403,3 +403,142 @@ def test_close_chat_success(client, monkeypatch):
     )
     resp = client.post("/v1/responder/chats/1/close", json={})
     assert resp.status_code == 200
+
+
+# ---------------------------------------------------------------------------
+# Per-endpoint auth failures
+# (responder.py lines 23, 26, 71, 74, 91, 94, 158, 161, 214, 217)
+# ---------------------------------------------------------------------------
+
+def _patch_auth_fail_token(monkeypatch):
+    from app.routes.helpers import return_error
+    monkeypatch.setattr(
+        res_routes, "require_access_token", lambda: (None, return_error("UNAUTHORIZED"))
+    )
+
+
+def _patch_auth_fail_user(monkeypatch):
+    from app.routes.helpers import return_error
+    monkeypatch.setattr(res_routes, "require_access_token", lambda: ("tok", None))
+    monkeypatch.setattr(
+        res_routes,
+        "require_supabase_user",
+        lambda t: (None, return_error("UNAUTHORIZED")),
+    )
+
+
+def test_claimed_chats_auth_token_failure(client, monkeypatch):
+    _patch_auth_fail_token(monkeypatch)
+    assert client.get("/v1/responder/chats").status_code == 401
+
+
+def test_claimed_chats_auth_user_failure(client, monkeypatch):
+    _patch_auth_fail_user(monkeypatch)
+    assert client.get("/v1/responder/chats").status_code == 401
+
+
+def test_browse_chats_auth_token_failure(client, monkeypatch):
+    _patch_auth_fail_token(monkeypatch)
+    assert client.get("/v1/responder/chats/unclaimed").status_code == 401
+
+
+def test_browse_chats_auth_user_failure(client, monkeypatch):
+    _patch_auth_fail_user(monkeypatch)
+    assert client.get("/v1/responder/chats/unclaimed").status_code == 401
+
+
+def test_get_chat_detail_auth_token_failure(client, monkeypatch):
+    _patch_auth_fail_token(monkeypatch)
+    assert client.get("/v1/responder/chats/1").status_code == 401
+
+
+def test_get_chat_detail_auth_user_failure(client, monkeypatch):
+    _patch_auth_fail_user(monkeypatch)
+    assert client.get("/v1/responder/chats/1").status_code == 401
+
+
+def test_post_message_auth_token_failure(client, monkeypatch):
+    _patch_auth_fail_token(monkeypatch)
+    assert client.post("/v1/responder/chats/1/messages", json={"message": "hi"}).status_code == 401
+
+
+def test_post_message_auth_user_failure(client, monkeypatch):
+    _patch_auth_fail_user(monkeypatch)
+    assert client.post("/v1/responder/chats/1/messages", json={"message": "hi"}).status_code == 401
+
+
+def test_close_chat_auth_token_failure(client, monkeypatch):
+    _patch_auth_fail_token(monkeypatch)
+    assert client.post("/v1/responder/chats/1/close", json={}).status_code == 401
+
+
+def test_close_chat_auth_user_failure(client, monkeypatch):
+    _patch_auth_fail_user(monkeypatch)
+    assert client.post("/v1/responder/chats/1/close", json={}).status_code == 401
+
+
+def test_claim_chat_auth_token_failure(client, monkeypatch):
+    _patch_auth_fail_token(monkeypatch)
+    assert client.post("/v1/responder/chats/1/claim", json={"title": "T"}).status_code == 401
+
+
+def test_claim_chat_auth_user_failure(client, monkeypatch):
+    _patch_auth_fail_user(monkeypatch)
+    assert client.post("/v1/responder/chats/1/claim", json={"title": "T"}).status_code == 401
+
+
+# ---------------------------------------------------------------------------
+# claim_chat service_client fallback (responder.py lines 106-111)
+# ---------------------------------------------------------------------------
+
+def test_claim_chat_user_client_none_service_client_conflict(client, monkeypatch):
+    """User client returns None (RLS hides it); service client finds already-claimed chat."""
+    _patch_auth(monkeypatch)
+
+    call_count = [0]
+
+    def get_chat_side_effect(client_obj, chat_id):
+        call_count[0] += 1
+        if call_count[0] == 1:
+            return None  # user_client sees nothing
+        # service_client sees a conflicting chat
+        return {"status": "claimed", "claim_state": "claimed"}
+
+    monkeypatch.setattr(res_routes, "get_chat_or_none", get_chat_side_effect)
+    resp = client.post("/v1/responder/chats/1/claim", json={"title": "T"})
+    assert resp.status_code == 409
+
+
+def test_claim_chat_user_client_none_service_client_also_none(client, monkeypatch):
+    """User client returns None; service client also can't find it → 404."""
+    _patch_auth(monkeypatch)
+    monkeypatch.setattr(res_routes, "get_chat_or_none", lambda *a: None)
+    resp = client.post("/v1/responder/chats/1/claim", json={"title": "T"})
+    assert resp.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# post_message fallback row (responder.py lines 194-203)
+# ---------------------------------------------------------------------------
+
+def test_post_message_uses_fallback_row_when_insert_returns_no_data(client, monkeypatch):
+    """If insert returns no data, the route builds a fallback row dict."""
+    _patch_auth(monkeypatch)
+    monkeypatch.setattr(
+        res_routes,
+        "get_chat_or_none",
+        lambda *a: {"responder_id": "user-1", "status": "claimed"},
+    )
+
+    class FakeTableNoData:
+        def insert(self, *a): return self
+        def execute(self): return SimpleNamespace(data=None)
+
+    monkeypatch.setattr(
+        res_routes,
+        "user_client",
+        lambda *a: SimpleNamespace(table=lambda *a: FakeTableNoData()),
+    )
+    resp = client.post("/v1/responder/chats/1/messages", json={"message": "hello"})
+    assert resp.status_code == 201
+    assert resp.json["message"] == "hello"
