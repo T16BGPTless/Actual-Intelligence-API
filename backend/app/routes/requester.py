@@ -128,46 +128,62 @@ def post_message(chat_id):
             "BAD_REQUEST", "tokensToSpend must be a non-negative integer"
         )
 
+    if tokens == 0:
+        # Fast path for 0-token messages: direct insert via user client
+        try:
+            res = client.table("messages").insert({
+                "chat_id": chat_id,
+                "sender_id": str(user.id),
+                "sender_type": "requester",
+                "message": msg_text,
+                "tokens": 0
+            }).execute()
+            if not res.data:
+                return return_error("INTERNAL_SERVER_ERROR", "Message insert failed")
+            return jsonify(message_dict(res.data[0])), HTTPStatus.CREATED
+        except Exception as e:
+            return return_error("INTERNAL_SERVER_ERROR", str(e))
+
+    # Paid message: needs transaction via service_role client
     try:
-        res = client.rpc(
-            "post_requester_message",
-            {"p_chat_id": chat_id, "p_message": msg_text, "p_tokens": tokens},
-        ).execute()
+        s_client = service_client()
+        # 1. Get account
+        acc = s_client.table("accounts").select("account_id").eq("created_by", str(user.id)).maybe_single().execute()
+        if not acc.data:
+            return return_error("NOT_FOUND", "Requester account not found")
+        account_id = acc.data["account_id"]
 
-        payload = res.data
-        if not payload:
-            return return_error("INTERNAL_SERVER_ERROR", "Message insert failed")
+        # 2. Log transaction (token_transactions trigger will update balance)
+        res_tx = s_client.table("token_transactions").insert({
+            "account_id": account_id,
+            "tokens": -tokens,
+            "chat_id": chat_id,
+            "description": f"Message payment for chat {chat_id}",
+            "created_by": str(user.id)
+        }).execute()
+        if not res_tx.data:
+            return return_error("INTERNAL_SERVER_ERROR", "Token transaction failed")
 
-        msg_row = payload
+        # 3. Log message
+        res_msg = s_client.table("messages").insert({
+            "chat_id": chat_id,
+            "sender_id": str(user.id),
+            "sender_type": "requester",
+            "message": msg_text,
+            "tokens": tokens
+        }).execute()
+        if not res_msg.data:
+            return return_error("INTERNAL_SERVER_ERROR", "Message creation failed")
+
+        return jsonify(message_dict(res_msg.data[0])), HTTPStatus.CREATED
+
     except APIError as e:
-        import json
-        print(f"DEBUG: post_message APIError: {e}")
-        if str(getattr(e, "code", "")) == "200" or str(getattr(e, "code", "")) == "201":
-            try:
-                raw_bytes_str = getattr(e, "details", "")
-                if isinstance(raw_bytes_str, bytes):
-                    raw_bytes_str = raw_bytes_str.decode("utf-8")
-                elif (
-                    isinstance(raw_bytes_str, str)
-                    and raw_bytes_str.startswith("b'")
-                    and raw_bytes_str.endswith("'")
-                ):
-                    raw_bytes_str = raw_bytes_str[2:-1].replace("'", "'")
-                msg_row = json.loads(raw_bytes_str)
-                return jsonify(msg_row), 201
-            except Exception as ex:
-                print(f"DEBUG: post_message JSON parse error: {ex}")
-                pass
-
         msg = getattr(e, "message", "") or ""
-        if "invalid_tokens" in msg:
+        if "invalid_tokens" in msg.lower() or "insufficient" in msg.lower():
             return return_error("BAD_REQUEST", "invalid_tokens")
-        return return_error("INTERNAL_SERVER_ERROR", f"RPC Error: {msg}")
+        return return_error("INTERNAL_SERVER_ERROR", str(e))
     except Exception as e:
-        print(f"DEBUG: post_message General Error: {e}")
-        return return_error("INTERNAL_SERVER_ERROR", f"General Error: {str(e)}")
-
-    return jsonify(message_dict(msg_row)), HTTPStatus.CREATED
+        return return_error("INTERNAL_SERVER_ERROR", str(e))
 
 
 @requester_bp.route("/v1/requester/chats/<chat_id>/review", methods=["POST"])

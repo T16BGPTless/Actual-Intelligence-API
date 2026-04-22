@@ -129,37 +129,66 @@ def test_post_message_success(client, monkeypatch):
         lambda *a: {"requester_id": "user-1", "status": "claimed"},
     )
 
-    class FakeRpc:
-        def __init__(self):
-            self.rpc_calls = []
+    class FakeChain:
+        def __init__(self, data=None):
+            self.data = data or []
+            self.calls = []
+            self._maybe_single = False
+
+        def select(self, *a):
+            self.calls.append(("select", a))
+            return self
+
+        def eq(self, *a):
+            self.calls.append(("eq", a))
+            return self
+
+        def maybe_single(self):
+            self.calls.append(("maybe_single", ()))
+            self._maybe_single = True
+            return self
+
+        def insert(self, *a):
+            self.calls.append(("insert", a))
+            return self
 
         def execute(self):
-            return SimpleNamespace(
-                data={
-                    "sender_type": "requester",
-                    "message": "hello",
-                    "tokens": 1,
-                    "created_at": "2026-04-16T12:00:00+00:00",
-                }
-            )
+            d = self.data
+            if self._maybe_single:
+                d = d[0] if d else None
+            return SimpleNamespace(data=d)
 
-    class FakeClient:
-        def __init__(self):
-            self.fake_rpc = FakeRpc()
+    acc_chain = FakeChain([{"account_id": "acc-1"}])
+    tx_chain = FakeChain([{"tokens": 1}])
+    msg_chain = FakeChain([{
+        "id": "m1",
+        "sender_id": "user-1",
+        "sender_type": "requester",
+        "message": "hello",
+        "tokens": 1,
+        "created_at": "2026-04-16T12:00:00+00:00"
+    }])
 
-        def rpc(self, *a, **k):
-            self.fake_rpc.rpc_calls.append((a, k))
-            return self.fake_rpc
+    def table_mock(name):
+        if name == "accounts": return acc_chain
+        if name == "token_transactions": return tx_chain
+        if name == "messages": return msg_chain
+        return FakeChain()
 
-    fake_client = FakeClient()
-    monkeypatch.setattr(req_routes, "user_client", lambda *a: fake_client)
+    monkeypatch.setattr(req_routes, "service_client", lambda: SimpleNamespace(table=table_mock))
+    monkeypatch.setattr(req_routes, "user_client", lambda *a: SimpleNamespace(table=table_mock))
+
+    # Test paid message
     resp = client.post(
         "/v1/requester/chats/1/messages", json={"message": "hello", "tokensToSpend": 1}
     )
     assert resp.status_code == 201
-    assert fake_client.fake_rpc.rpc_calls, (
-        "Expected token-spend path to trigger an RPC call"
+
+    # Test free message
+    resp = client.post(
+        "/v1/requester/chats/1/messages", json={"message": "hello", "tokensToSpend": 0}
     )
+    assert resp.status_code == 201
 
 
 def test_review_chat_success(client, monkeypatch):
@@ -288,28 +317,36 @@ def test_post_message_errors(client, monkeypatch):
     )
     assert resp.status_code == 400
 
-    class FakeRpcErr:
+    class FakeTableErr:
+        def select(self, *a): return self
+        def eq(self, *a): return self
+        def maybe_single(self): return self
+        def insert(self, *a): return self
         def execute(self):
             raise APIError({"message": "db error"})
 
     monkeypatch.setattr(
         req_routes,
-        "user_client",
-        lambda *a: SimpleNamespace(rpc=lambda *a, **k: FakeRpcErr()),
+        "service_client",
+        lambda: SimpleNamespace(table=lambda *a: FakeTableErr()),
     )
     resp = client.post(
         "/v1/requester/chats/1/messages", json={"message": "M", "tokensToSpend": 10}
     )
     assert resp.status_code == 500
 
-    class FakeRpcErrTokens:
+    class FakeTableErrTokens:
+        def select(self, *a): return self
+        def eq(self, *a): return self
+        def maybe_single(self): return self
+        def insert(self, *a): return self
         def execute(self):
             raise APIError({"message": "invalid_tokens"})
 
     monkeypatch.setattr(
         req_routes,
-        "user_client",
-        lambda *a: SimpleNamespace(rpc=lambda *a, **k: FakeRpcErrTokens()),
+        "service_client",
+        lambda: SimpleNamespace(table=lambda *a: FakeTableErrTokens()),
     )
     resp = client.post(
         "/v1/requester/chats/1/messages", json={"message": "M", "tokensToSpend": 10}
@@ -620,117 +657,123 @@ def test_review_chat_skips_payout_when_zero_tokens(client, monkeypatch):
     assert resp.status_code == 200
 
 
+
 # ---------------------------------------------------------------------------
-# post_message APIError with code 200/201 (lines 146-159)
+
+# ---------------------------------------------------------------------------
+# Coverage Improvement Tests
 # ---------------------------------------------------------------------------
 
-def test_post_message_api_error_code_200_with_valid_json_details(client, monkeypatch):
-    """APIError with code '200' and valid JSON bytes in details → 201."""
-    import json
+def test_create_chat_generic_error(client, monkeypatch):
+    """create_chat returns generic error (err != 'invalid_tokens') → 500."""
     _patch_auth(monkeypatch)
-    monkeypatch.setattr(
-        req_routes,
-        "get_chat_or_none",
-        lambda *a: {"requester_id": "user-1", "status": "claimed"},
-    )
-
-    msg_payload = {"sender_type": "requester", "message": "hi", "tokens": 0, "created_at": "2026-04-01"}
-
-    class FakeRpcOK:
-        def execute(self):
-            err = APIError({"message": "ok"})
-            err.code = "200"
-            err.details = json.dumps(msg_payload).encode("utf-8")
-            raise err
-
-    monkeypatch.setattr(
-        req_routes,
-        "user_client",
-        lambda *a: SimpleNamespace(rpc=lambda *a, **k: FakeRpcOK()),
-    )
-    resp = client.post(
-        "/v1/requester/chats/1/messages", json={"message": "hi", "tokensToSpend": 0}
-    )
-    assert resp.status_code == 201
-
-
-def test_post_message_api_error_code_200_with_bad_details_falls_through(client, monkeypatch):
-    """APIError with code '200' but unparseable details → falls through to 500."""
-    _patch_auth(monkeypatch)
-    monkeypatch.setattr(
-        req_routes,
-        "get_chat_or_none",
-        lambda *a: {"requester_id": "user-1", "status": "claimed"},
-    )
-
-    class FakeRpcBad:
-        def execute(self):
-            err = APIError({"message": "ok"})
-            err.code = "200"
-            err.details = "not json at all!"
-            raise err
-
-    monkeypatch.setattr(
-        req_routes,
-        "user_client",
-        lambda *a: SimpleNamespace(rpc=lambda *a, **k: FakeRpcBad()),
-    )
-    resp = client.post(
-        "/v1/requester/chats/1/messages", json={"message": "hi", "tokensToSpend": 0}
-    )
+    monkeypatch.setattr(req_routes, "create_chat_with_initial_request", lambda *a: (None, "some_db_error"))
+    resp = client.post("/v1/requester/chats", json={"requestText": "hi", "tokensToSpend": 10})
     assert resp.status_code == 500
+    assert resp.json["message"] == "Unable to create chat"
 
 
-def test_post_message_api_error_code_201_bytes_string_format(client, monkeypatch):
-    """APIError code 201 with b'...' string in details is parsed and returns 201."""
-    import json
+def test_post_message_free_no_data(client, monkeypatch):
+    """Fast path (0 tokens) insert returns no data → 500."""
     _patch_auth(monkeypatch)
-    monkeypatch.setattr(
-        req_routes,
-        "get_chat_or_none",
-        lambda *a: {"requester_id": "user-1", "status": "claimed"},
-    )
-
-    msg_payload = {"sender_type": "requester", "message": "hi", "tokens": 0, "created_at": "now"}
-    raw = json.dumps(msg_payload)
-    bytes_str = "b'" + raw + "'"
-
-    class FakeRpc201:
-        def execute(self):
-            err = APIError({"message": "ok"})
-            err.code = "201"
-            err.details = bytes_str
-            raise err
-
-    monkeypatch.setattr(
-        req_routes,
-        "user_client",
-        lambda *a: SimpleNamespace(rpc=lambda *a, **k: FakeRpc201()),
-    )
-    resp = client.post(
-        "/v1/requester/chats/1/messages", json={"message": "hi", "tokensToSpend": 0}
-    )
-    assert resp.status_code == 201
-
-
-def test_post_message_rpc_returns_none_data(client, monkeypatch):
-    """rpc returns no data → 500."""
-    _patch_auth(monkeypatch)
-    monkeypatch.setattr(
-        req_routes,
-        "get_chat_or_none",
-        lambda *a: {"requester_id": "user-1", "status": "claimed"},
-    )
-
-    class FakeRpcNone:
-        def execute(self): return SimpleNamespace(data=None)
-
-    monkeypatch.setattr(
-        req_routes,
-        "user_client",
-        lambda *a: SimpleNamespace(rpc=lambda *a, **k: FakeRpcNone()),
-    )
-    resp = client.post(
-        "/v1/requester/chats/1/messages", json={"message": "hi", "tokensToSpend": 0}
-    )
+    monkeypatch.setattr(req_routes, "get_chat_or_none", lambda *a: {"requester_id": "user-1", "status": "claimed"})
+    
+    class FakeEmptyTable:
+        def insert(self, *a): return self
+        def execute(self): return SimpleNamespace(data=[]) # Empty list
+    
+    monkeypatch.setattr(req_routes, "user_client", lambda *a: SimpleNamespace(table=lambda *a: FakeEmptyTable()))
+    resp = client.post("/v1/requester/chats/1/messages", json={"message": "hi", "tokensToSpend": 0})
     assert resp.status_code == 500
+    assert "Message insert failed" in resp.json["message"]
+
+
+def test_post_message_free_exception(client, monkeypatch):
+    """Fast path (0 tokens) throws general exception → 500."""
+    _patch_auth(monkeypatch)
+    monkeypatch.setattr(req_routes, "get_chat_or_none", lambda *a: {"requester_id": "user-1", "status": "claimed"})
+    
+    class FakeCrashTable:
+        def insert(self, *a): raise Exception("Unexpected crash")
+    
+    monkeypatch.setattr(req_routes, "user_client", lambda *a: SimpleNamespace(table=lambda *a: FakeCrashTable()))
+    resp = client.post("/v1/requester/chats/1/messages", json={"message": "hi", "tokensToSpend": 0})
+    assert resp.status_code == 500
+    assert "Unexpected crash" in resp.json["message"]
+
+
+def test_post_message_paid_account_not_found(client, monkeypatch):
+    """Paid path: account lookup returns no data → 404."""
+    _patch_auth(monkeypatch)
+    monkeypatch.setattr(req_routes, "get_chat_or_none", lambda *a: {"requester_id": "user-1", "status": "claimed"})
+    
+    class FakeChain:
+        def select(self, *a): return self
+        def eq(self, *a): return self
+        def maybe_single(self): return self
+        def execute(self): return SimpleNamespace(data=None) # No account
+        
+    monkeypatch.setattr(req_routes, "service_client", lambda: SimpleNamespace(table=lambda *a: FakeChain()))
+    resp = client.post("/v1/requester/chats/1/messages", json={"message": "hi", "tokensToSpend": 10})
+    assert resp.status_code == 404
+    assert "Requester account not found" in resp.json["message"]
+
+
+def test_post_message_paid_tx_no_data(client, monkeypatch):
+    """Paid path: tx insert returns no data → 500."""
+    _patch_auth(monkeypatch)
+    monkeypatch.setattr(req_routes, "get_chat_or_none", lambda *a: {"requester_id": "user-1", "status": "claimed"})
+    
+    class FakeChain:
+        def __init__(self): self.count = 0
+        def select(self, *a): return self
+        def eq(self, *a): return self
+        def maybe_single(self): return self
+        def insert(self, *a): return self
+        def execute(self):
+            self.count += 1
+            if self.count == 1: return SimpleNamespace(data={"account_id": "acc-1"})
+            return SimpleNamespace(data=[]) # tx fails
+    
+    chain = FakeChain()
+    monkeypatch.setattr(req_routes, "service_client", lambda: SimpleNamespace(table=lambda *a: chain))
+    resp = client.post("/v1/requester/chats/1/messages", json={"message": "hi", "tokensToSpend": 10})
+    assert resp.status_code == 500
+    assert "Token transaction failed" in resp.json["message"]
+
+
+def test_post_message_paid_msg_no_data(client, monkeypatch):
+    """Paid path: message insert returns no data → 500."""
+    _patch_auth(monkeypatch)
+    monkeypatch.setattr(req_routes, "get_chat_or_none", lambda *a: {"requester_id": "user-1", "status": "claimed"})
+    
+    class FakeChain:
+        def __init__(self): self.count = 0
+        def select(self, *a): return self
+        def eq(self, *a): return self
+        def maybe_single(self): return self
+        def insert(self, *a): return self
+        def execute(self):
+            self.count += 1
+            if self.count == 1: return SimpleNamespace(data={"account_id": "acc-1"})
+            if self.count == 2: return SimpleNamespace(data=[{"id": "tx-1"}])
+            return SimpleNamespace(data=[]) # msg fails
+    
+    chain = FakeChain()
+    monkeypatch.setattr(req_routes, "service_client", lambda: SimpleNamespace(table=lambda *a: chain))
+    resp = client.post("/v1/requester/chats/1/messages", json={"message": "hi", "tokensToSpend": 10})
+    assert resp.status_code == 500
+    assert "Message creation failed" in resp.json["message"]
+
+
+def test_post_message_paid_general_exception(client, monkeypatch):
+    """Paid path: general exception during flow → 500."""
+    _patch_auth(monkeypatch)
+    monkeypatch.setattr(req_routes, "get_chat_or_none", lambda *a: {"requester_id": "user-1", "status": "claimed"})
+    
+    def crash_table(*a): raise Exception("Paid flow crash")
+            
+    monkeypatch.setattr(req_routes, "service_client", lambda: SimpleNamespace(table=crash_table))
+    resp = client.post("/v1/requester/chats/1/messages", json={"message": "hi", "tokensToSpend": 10})
+    assert resp.status_code == 500
+    assert "Paid flow crash" in resp.json["message"]
