@@ -80,9 +80,7 @@ def test_user_client_handles_missing_headers_gracefully(monkeypatch):
     monkeypatch.setattr(supabase_client, "supabase_anon_key", lambda: "anon")
 
     # postgrest with auth but no headers attr — removeprefix is fine, hasattr is False
-    fake_client = SimpleNamespace(
-        postgrest=SimpleNamespace(auth=lambda _t: None)
-    )
+    fake_client = SimpleNamespace(postgrest=SimpleNamespace(auth=lambda _t: None))
     monkeypatch.setattr(supabase_client, "create_client", lambda _u, _k: fake_client)
 
     out = supabase_client.user_client("tok")

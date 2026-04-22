@@ -94,6 +94,7 @@ def test_create_chat_with_initial_request_success():
         def update(self, d):
             return FakeUpd()
 
+
 from postgrest.exceptions import APIError
 
 
@@ -139,14 +140,17 @@ def _make_fake_client(profile_rows=None, message_rows=None, chat_data=None):
 # profile_map
 # ---------------------------------------------------------------------------
 
+
 def test_profile_map_empty_ids_returns_empty():
     from app.chat_data import profile_map
+
     assert profile_map(None, set()) == {}
     assert profile_map(None, {""}) == {}
 
 
 def test_profile_map_returns_keyed_by_user_id():
     from app.chat_data import profile_map
+
     client = _make_fake_client(
         profile_rows=[
             {"user_id": "u1", "username": "alice", "display_name": "Alice"},
@@ -162,8 +166,10 @@ def test_profile_map_returns_keyed_by_user_id():
 # build_chat_detail
 # ---------------------------------------------------------------------------
 
+
 def test_build_chat_detail_with_messages():
     from app.chat_data import build_chat_detail
+
     client = _make_fake_client(
         profile_rows=[
             {"user_id": "u1", "username": "alice", "display_name": "Alice"},
@@ -200,6 +206,7 @@ def test_build_chat_detail_with_messages():
 
 def test_build_chat_detail_with_responder():
     from app.chat_data import build_chat_detail
+
     client = _make_fake_client(
         profile_rows=[
             {"user_id": "u1", "username": "alice", "display_name": "Alice"},
@@ -228,17 +235,26 @@ def test_build_chat_detail_with_responder():
 # get_chat_or_none branches
 # ---------------------------------------------------------------------------
 
+
 def test_get_chat_or_none_returns_none_when_execute_returns_falsy():
     from app.chat_data import get_chat_or_none
 
     class FakeQ:
-        def select(self, *a): return self
-        def eq(self, *a): return self
-        def maybe_single(self): return self
-        def execute(self): return None
+        def select(self, *a):
+            return self
+
+        def eq(self, *a):
+            return self
+
+        def maybe_single(self):
+            return self
+
+        def execute(self):
+            return None
 
     class FakeClient:
-        def table(self, *a): return FakeQ()
+        def table(self, *a):
+            return FakeQ()
 
     assert get_chat_or_none(FakeClient(), "x") is None
 
@@ -247,13 +263,21 @@ def test_get_chat_or_none_returns_dict_directly():
     from app.chat_data import get_chat_or_none
 
     class FakeQ:
-        def select(self, *a): return self
-        def eq(self, *a): return self
-        def maybe_single(self): return self
-        def execute(self): return {"chat_id": "c1"}
+        def select(self, *a):
+            return self
+
+        def eq(self, *a):
+            return self
+
+        def maybe_single(self):
+            return self
+
+        def execute(self):
+            return {"chat_id": "c1"}
 
     class FakeClient:
-        def table(self, *a): return FakeQ()
+        def table(self, *a):
+            return FakeQ()
 
     result = get_chat_or_none(FakeClient(), "c1")
     assert result["chat_id"] == "c1"
@@ -263,13 +287,21 @@ def test_get_chat_or_none_returns_data_from_namespace():
     from app.chat_data import get_chat_or_none
 
     class FakeQ:
-        def select(self, *a): return self
-        def eq(self, *a): return self
-        def maybe_single(self): return self
-        def execute(self): return SimpleNamespace(data={"chat_id": "c2"})
+        def select(self, *a):
+            return self
+
+        def eq(self, *a):
+            return self
+
+        def maybe_single(self):
+            return self
+
+        def execute(self):
+            return SimpleNamespace(data={"chat_id": "c2"})
 
     class FakeClient:
-        def table(self, *a): return FakeQ()
+        def table(self, *a):
+            return FakeQ()
 
     result = get_chat_or_none(FakeClient(), "c2")
     assert result["chat_id"] == "c2"
@@ -279,8 +311,10 @@ def test_get_chat_or_none_returns_data_from_namespace():
 # create_chat_with_initial_request branches
 # ---------------------------------------------------------------------------
 
+
 def test_create_chat_missing_tokens_to_spend():
     from app.chat_data import create_chat_with_initial_request
+
     res, err = create_chat_with_initial_request(None, {"requestText": "hi"})
     assert err == "invalid_tokens"
     assert res is None
@@ -290,7 +324,9 @@ def test_create_chat_rpc_api_error_returns_rpc_failed():
     from app.chat_data import create_chat_with_initial_request
 
     class FakeClient:
-        def rpc(self, *a, **k): return self
+        def rpc(self, *a, **k):
+            return self
+
         def execute(self):
             raise APIError({"message": "rpc error"})
 
@@ -305,8 +341,11 @@ def test_create_chat_rpc_returns_empty_list():
     from app.chat_data import create_chat_with_initial_request
 
     class FakeClient:
-        def rpc(self, *a, **k): return self
-        def execute(self): return SimpleNamespace(data=[])
+        def rpc(self, *a, **k):
+            return self
+
+        def execute(self):
+            return SimpleNamespace(data=[])
 
     res, err = create_chat_with_initial_request(
         FakeClient(), {"tokensToSpend": 5, "requestText": "hi"}
@@ -318,8 +357,11 @@ def test_create_chat_rpc_returns_not_ok():
     from app.chat_data import create_chat_with_initial_request
 
     class FakeClient:
-        def rpc(self, *a, **k): return self
-        def execute(self): return SimpleNamespace(data=[{"ok": False}])
+        def rpc(self, *a, **k):
+            return self
+
+        def execute(self):
+            return SimpleNamespace(data=[{"ok": False}])
 
     res, err = create_chat_with_initial_request(
         FakeClient(), {"tokensToSpend": 5, "requestText": "hi"}
@@ -331,15 +373,24 @@ def test_create_chat_title_update_api_error_returns_payload_with_warning():
     from app.chat_data import create_chat_with_initial_request
 
     class FakeUpd:
-        def eq(self, *a): return self
+        def eq(self, *a):
+            return self
+
         def execute(self):
             raise APIError({"message": "update failed"})
 
     class FakeClient:
-        def rpc(self, *a, **k): return self
-        def execute(self): return SimpleNamespace(data=[{"ok": True, "chat_id": "c1"}])
-        def table(self, *a): return self
-        def update(self, *a): return FakeUpd()
+        def rpc(self, *a, **k):
+            return self
+
+        def execute(self):
+            return SimpleNamespace(data=[{"ok": True, "chat_id": "c1"}])
+
+        def table(self, *a):
+            return self
+
+        def update(self, *a):
+            return FakeUpd()
 
     res, err = create_chat_with_initial_request(
         FakeClient(), {"tokensToSpend": 5, "requestText": "hi", "title": "My Title"}

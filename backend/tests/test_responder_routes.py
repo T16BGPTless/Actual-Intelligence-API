@@ -77,7 +77,11 @@ def test_claim_chat_success(client, monkeypatch):
     monkeypatch.setattr(
         res_routes,
         "get_chat_or_none",
-        lambda *a: {"status": "open", "claim_state": "unclaimed", "requester_id": "other-user"},
+        lambda *a: {
+            "status": "open",
+            "claim_state": "unclaimed",
+            "requester_id": "other-user",
+        },
     )
 
     class FakeTable:
@@ -227,7 +231,11 @@ def test_claim_chat_errors(client, monkeypatch):
     monkeypatch.setattr(
         res_routes,
         "get_chat_or_none",
-        lambda *a: {"status": "open", "claim_state": "unclaimed", "requester_id": "other-user"},
+        lambda *a: {
+            "status": "open",
+            "claim_state": "unclaimed",
+            "requester_id": "other-user",
+        },
     )
 
     class FakeTableErr:
@@ -410,8 +418,10 @@ def test_close_chat_success(client, monkeypatch):
 # (responder.py lines 23, 26, 71, 74, 91, 94, 158, 161, 214, 217)
 # ---------------------------------------------------------------------------
 
+
 def _patch_auth_fail_token(monkeypatch):
     from app.routes.helpers import return_error
+
     monkeypatch.setattr(
         res_routes, "require_access_token", lambda: (None, return_error("UNAUTHORIZED"))
     )
@@ -419,6 +429,7 @@ def _patch_auth_fail_token(monkeypatch):
 
 def _patch_auth_fail_user(monkeypatch):
     from app.routes.helpers import return_error
+
     monkeypatch.setattr(res_routes, "require_access_token", lambda: ("tok", None))
     monkeypatch.setattr(
         res_routes,
@@ -459,12 +470,22 @@ def test_get_chat_detail_auth_user_failure(client, monkeypatch):
 
 def test_post_message_auth_token_failure(client, monkeypatch):
     _patch_auth_fail_token(monkeypatch)
-    assert client.post("/v1/responder/chats/1/messages", json={"message": "hi"}).status_code == 401
+    assert (
+        client.post(
+            "/v1/responder/chats/1/messages", json={"message": "hi"}
+        ).status_code
+        == 401
+    )
 
 
 def test_post_message_auth_user_failure(client, monkeypatch):
     _patch_auth_fail_user(monkeypatch)
-    assert client.post("/v1/responder/chats/1/messages", json={"message": "hi"}).status_code == 401
+    assert (
+        client.post(
+            "/v1/responder/chats/1/messages", json={"message": "hi"}
+        ).status_code
+        == 401
+    )
 
 
 def test_close_chat_auth_token_failure(client, monkeypatch):
@@ -479,17 +500,24 @@ def test_close_chat_auth_user_failure(client, monkeypatch):
 
 def test_claim_chat_auth_token_failure(client, monkeypatch):
     _patch_auth_fail_token(monkeypatch)
-    assert client.post("/v1/responder/chats/1/claim", json={"title": "T"}).status_code == 401
+    assert (
+        client.post("/v1/responder/chats/1/claim", json={"title": "T"}).status_code
+        == 401
+    )
 
 
 def test_claim_chat_auth_user_failure(client, monkeypatch):
     _patch_auth_fail_user(monkeypatch)
-    assert client.post("/v1/responder/chats/1/claim", json={"title": "T"}).status_code == 401
+    assert (
+        client.post("/v1/responder/chats/1/claim", json={"title": "T"}).status_code
+        == 401
+    )
 
 
 # ---------------------------------------------------------------------------
 # claim_chat service_client fallback (responder.py lines 106-111)
 # ---------------------------------------------------------------------------
+
 
 def test_claim_chat_user_client_none_service_client_conflict(client, monkeypatch):
     """User client returns None (RLS hides it); service client finds already-claimed chat."""
@@ -521,7 +549,10 @@ def test_claim_chat_user_client_none_service_client_also_none(client, monkeypatc
 # post_message fallback row (responder.py lines 194-203)
 # ---------------------------------------------------------------------------
 
-def test_post_message_uses_fallback_row_when_insert_returns_no_data(client, monkeypatch):
+
+def test_post_message_uses_fallback_row_when_insert_returns_no_data(
+    client, monkeypatch
+):
     """If insert returns no data, the route builds a fallback row dict."""
     _patch_auth(monkeypatch)
     monkeypatch.setattr(
@@ -531,8 +562,11 @@ def test_post_message_uses_fallback_row_when_insert_returns_no_data(client, monk
     )
 
     class FakeTableNoData:
-        def insert(self, *a): return self
-        def execute(self): return SimpleNamespace(data=None)
+        def insert(self, *a):
+            return self
+
+        def execute(self):
+            return SimpleNamespace(data=None)
 
     monkeypatch.setattr(
         res_routes,
