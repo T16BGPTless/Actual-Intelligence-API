@@ -77,6 +77,20 @@ def test_register_success_returns_201(client, monkeypatch):
     assert resp.json["accessToken"] == "token-register"
 
 
+def test_register_unsw_email_forbidden(client):
+    resp = client.post(
+        "/v1/auth/register",
+        json={
+            "email": "student@unsw.edu.au",
+            "password": "pw",
+            "name": "Student",
+            "username": "student",
+        },
+    )
+    assert resp.status_code == 400
+    assert "Emails with university domain are not allowed" in resp.json["message"]
+
+
 def test_login_missing_password_returns_400(client):
     resp = client.post("/v1/auth/login", json={"email": "u@example.com"})
     assert resp.status_code == 400

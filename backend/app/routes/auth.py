@@ -96,6 +96,11 @@ def register():
         if field not in body:
             return _missing_field_error("registration", field)
 
+    if body["email"].lower().endswith("unsw.edu.au"):
+        return return_error(
+            "BAD_REQUEST", "Emails with university domain are not allowed"
+        )
+
     signup_options = {
         "data": {
             "username": body["username"],
