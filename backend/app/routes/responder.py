@@ -114,6 +114,9 @@ def claim_chat(chat_id):
     if chat["status"] != "open" or chat["claim_state"] != "unclaimed":
         return return_error("CONFLICT", "This chat has already been claimed")
 
+    if str(chat["requester_id"]) == str(user.id):
+        return return_error("FORBIDDEN", "You cannot claim your own chat")
+
     try:
         res = (
             client.table("chats")

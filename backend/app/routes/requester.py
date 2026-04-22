@@ -141,7 +141,7 @@ def post_message(chat_id):
         msg_row = payload
     except APIError as e:
         import json
-
+        print(f"DEBUG: post_message APIError: {e}")
         if str(getattr(e, "code", "")) == "200" or str(getattr(e, "code", "")) == "201":
             try:
                 raw_bytes_str = getattr(e, "details", "")
@@ -155,13 +155,17 @@ def post_message(chat_id):
                     raw_bytes_str = raw_bytes_str[2:-1].replace("'", "'")
                 msg_row = json.loads(raw_bytes_str)
                 return jsonify(msg_row), 201
-            except Exception:
+            except Exception as ex:
+                print(f"DEBUG: post_message JSON parse error: {ex}")
                 pass
 
         msg = getattr(e, "message", "") or ""
         if "invalid_tokens" in msg:
             return return_error("BAD_REQUEST", "invalid_tokens")
-        return return_error("INTERNAL_SERVER_ERROR")
+        return return_error("INTERNAL_SERVER_ERROR", f"RPC Error: {msg}")
+    except Exception as e:
+        print(f"DEBUG: post_message General Error: {e}")
+        return return_error("INTERNAL_SERVER_ERROR", f"General Error: {str(e)}")
 
     return jsonify(message_dict(msg_row)), HTTPStatus.CREATED
 

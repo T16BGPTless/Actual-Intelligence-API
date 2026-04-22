@@ -661,10 +661,6 @@ ALTER PUBLICATION "supabase_realtime" ADD TABLE ONLY "public"."token_balances";
 
 
 
-REVOKE USAGE ON SCHEMA "public" FROM PUBLIC;
-
-
-
 
 
 

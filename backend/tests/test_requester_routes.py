@@ -734,4 +734,3 @@ def test_post_message_rpc_returns_none_data(client, monkeypatch):
         "/v1/requester/chats/1/messages", json={"message": "hi", "tokensToSpend": 0}
     )
     assert resp.status_code == 500
-
