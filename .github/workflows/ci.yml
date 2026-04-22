@@ -48,6 +48,18 @@ jobs:
           PYTHONPATH: ${{ github.workspace }}/backend
         run: coverage run -m pytest tests
       
+      - name: Start Backend Server
+        run: |
+          export PYTHONPATH=$GITHUB_WORKSPACE/backend
+          python -c "from app.app import app; app.run(host='127.0.0.1', port=5002)" &
+          timeout 60 bash -c 'until curl -s http://127.0.0.1:5002/ > /dev/null; do sleep 2; done'
+
+      - name: Integration tests
+        env:
+          PYTHONPATH: ${{ github.workspace }}/backend
+          E2E_BASE_URL: http://127.0.0.1:5002
+        run: pytest local_tests
+
       - name: Coverage report
         run: coverage report -m
       
