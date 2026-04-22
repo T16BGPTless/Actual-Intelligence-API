@@ -77,7 +77,7 @@ def test_claim_chat_success(client, monkeypatch):
     monkeypatch.setattr(
         res_routes,
         "get_chat_or_none",
-        lambda *a: {"status": "open", "claim_state": "unclaimed"},
+        lambda *a: {"status": "open", "claim_state": "unclaimed", "requester_id": "other-user"},
     )
 
     class FakeTable:
@@ -227,7 +227,7 @@ def test_claim_chat_errors(client, monkeypatch):
     monkeypatch.setattr(
         res_routes,
         "get_chat_or_none",
-        lambda *a: {"status": "open", "claim_state": "unclaimed"},
+        lambda *a: {"status": "open", "claim_state": "unclaimed", "requester_id": "other-user"},
     )
 
     class FakeTableErr:
