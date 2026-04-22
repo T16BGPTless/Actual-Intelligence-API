@@ -46,7 +46,7 @@ jobs:
       - name: Pytest with coverage
         env:
           PYTHONPATH: ${{ github.workspace }}/backend
-        run: coverage run -m pytest
+        run: coverage run -m pytest tests
       
       - name: Coverage report
         run: coverage report -m
