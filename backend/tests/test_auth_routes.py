@@ -88,7 +88,20 @@ def test_register_unsw_email_forbidden(client):
         },
     )
     assert resp.status_code == 400
-    assert "Emails with university domain are not allowed" in resp.json["message"]
+    assert "unsw.edu.au" in resp.json["message"]
+
+    # Test subdomain
+    resp = client.post(
+        "/v1/auth/register",
+        json={
+            "email": "student@student.unsw.edu.au",
+            "password": "pw",
+            "name": "Student",
+            "username": "student2",
+        },
+    )
+    assert resp.status_code == 400
+    assert "unsw.edu.au" in resp.json["message"]
 
 
 def test_login_missing_password_returns_400(client):

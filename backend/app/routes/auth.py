@@ -98,7 +98,7 @@ def register():
 
     if body["email"].lower().endswith("unsw.edu.au"):
         return return_error(
-            "BAD_REQUEST", "Emails with university domain are not allowed"
+            "BAD_REQUEST", "Emails with unsw.edu.au domain are not allowed"
         )
 
     signup_options = {
