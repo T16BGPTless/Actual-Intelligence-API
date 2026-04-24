@@ -3,6 +3,7 @@
 from http import HTTPStatus
 from flask import Blueprint, jsonify, request
 from postgrest.exceptions import APIError
+import datetime
 
 from app.chat_data import (
     build_chat_detail,
@@ -128,42 +129,99 @@ def post_message(chat_id):
             "BAD_REQUEST", "tokensToSpend must be a non-negative integer"
         )
 
+    if tokens == 0:
+        try:
+            res = (
+                client.table("messages")
+                .insert(
+                    {
+                        "chat_id": chat_id,
+                        "sender_id": str(user.id),
+                        "sender_type": "requester",
+                        "message": msg_text,
+                        "tokens": 0,
+                    }
+                )
+                .execute()
+            )
+            if not res.data:
+                return return_error("INTERNAL_SERVER_ERROR", "Message insert failed")
+            return jsonify(message_dict(res.data[0])), HTTPStatus.CREATED
+        except Exception as e:
+            return return_error("INTERNAL_SERVER_ERROR", str(e))
+
     try:
-        res = client.rpc(
-            "post_requester_message",
-            {"p_chat_id": chat_id, "p_message": msg_text, "p_tokens": tokens},
+        s_client = service_client()
+        # 1. Get account
+        acc = (
+            s_client.table("accounts")
+            .select("account_id")
+            .eq("created_by", str(user.id))
+            .maybe_single()
+            .execute()
+        )
+        if not acc.data:
+            return return_error("NOT_FOUND", "Requester account not found")
+        account_id = acc.data["account_id"]
+
+        # 2. Check and Update balance
+        bal_res = (
+            s_client.table("token_balances")
+            .select("balance")
+            .eq("account_id", account_id)
+            .maybe_single()
+            .execute()
+        )
+        if not bal_res.data or bal_res.data["balance"] < tokens:
+            return return_error("BAD_REQUEST", "invalid_tokens")
+
+        s_client.table("token_balances").update(
+            {"balance": bal_res.data["balance"] - tokens}
+        ).eq("account_id", account_id).execute()
+
+        # 3. Log transaction
+        s_client.table("token_transactions").insert(
+            {
+                "account_id": account_id,
+                "txn_type": "spend",
+                "amount": -tokens,
+                "chat_id": chat_id,
+                "created_by": str(user.id),
+            }
         ).execute()
 
-        payload = res.data
-        if not payload:
-            return return_error("INTERNAL_SERVER_ERROR", "Message insert failed")
+        # 4. Log message
+        res_msg = (
+            s_client.table("messages")
+            .insert(
+                {
+                    "chat_id": chat_id,
+                    "sender_id": str(user.id),
+                    "sender_type": "requester",
+                    "message": msg_text,
+                    "tokens": tokens,
+                }
+            )
+            .execute()
+        )
+        if not res_msg.data:
+            return return_error("INTERNAL_SERVER_ERROR", "Message creation failed")
 
-        msg_row = payload
+        # 5. Update chat tokens_spent
+        current_spent = chat.get("tokens_spent") or 0
+        s_client.table("chats").update({"tokens_spent": current_spent + tokens}).eq(
+            "chat_id", chat_id
+        ).execute()
+
+        return jsonify(message_dict(res_msg.data[0])), HTTPStatus.CREATED
+
     except APIError as e:
-        import json
-
-        if str(getattr(e, "code", "")) == "200" or str(getattr(e, "code", "")) == "201":
-            try:
-                raw_bytes_str = getattr(e, "details", "")
-                if isinstance(raw_bytes_str, bytes):
-                    raw_bytes_str = raw_bytes_str.decode("utf-8")
-                elif (
-                    isinstance(raw_bytes_str, str)
-                    and raw_bytes_str.startswith("b'")
-                    and raw_bytes_str.endswith("'")
-                ):
-                    raw_bytes_str = raw_bytes_str[2:-1].replace("'", "'")
-                msg_row = json.loads(raw_bytes_str)
-                return jsonify(msg_row), 201
-            except Exception:
-                pass
-
         msg = getattr(e, "message", "") or ""
-        if "invalid_tokens" in msg:
+        if "invalid_tokens" in msg.lower() or "insufficient" in msg.lower():
             return return_error("BAD_REQUEST", "invalid_tokens")
-        return return_error("INTERNAL_SERVER_ERROR")
-
-    return jsonify(message_dict(msg_row)), HTTPStatus.CREATED
+        return return_error("INTERNAL_SERVER_ERROR", str(e))
+    except Exception as e:
+        return return_error("INTERNAL_SERVER_ERROR", str(e))
 
 
 @requester_bp.route("/v1/requester/chats/<chat_id>/review", methods=["POST"])
@@ -189,59 +247,72 @@ def review_chat(chat_id):
         return return_error("BAD_REQUEST", "Resolved must be a boolean")
 
     client = user_client(access_token)
-    sclient = service_client()
     chat = get_chat_or_none(client, chat_id)
     if not chat:
         return return_error("NOT_FOUND", "Not Found")
     if str(chat["requester_id"]) != str(user.id):
         return return_error("FORBIDDEN", "You do not have access to this content")
     if chat["status"] != "closing":
-        return return_error("BAD_REQUEST", "Chat is not closing")
-
-    upd = {"status": "closed", "resolved": resolved, "rating": rating}
+        return return_error("BAD_REQUEST", "Chat is not in closing state")
 
     try:
-        # Payout tokens to responder
-        responder_id = chat.get("responder_id")
-        tokens_spent = int(chat.get("tokens_spent") or 0)
-
-        if responder_id and tokens_spent > 0:
-            res_account = (
-                sclient.table("accounts")
+        s_client = service_client()
+        # 1. Payout to responder if applicable
+        if chat.get("responder_id") and chat.get("tokens_spent", 0) > 0:
+            tokens = chat["tokens_spent"]
+            # Get responder account
+            res_acc = (
+                s_client.table("accounts")
                 .select("account_id")
-                .eq("created_by", responder_id)
+                .eq("created_by", str(chat["responder_id"]))
                 .maybe_single()
                 .execute()
-                .data
             )
-            if res_account:
-                acc_id = res_account["account_id"]
-                # get current balance
-                cur = (
-                    sclient.table("token_balances")
-                    .select("balance")
-                    .eq("account_id", acc_id)
-                    .maybe_single()
-                    .execute()
-                    .data
-                )
-                cur_bal = int((cur or {}).get("balance") or 0)
-
-                sclient.table("token_balances").update(
-                    {"balance": cur_bal + tokens_spent}
-                ).eq("account_id", acc_id).execute()
-                sclient.table("token_transactions").insert(
+            if res_acc.data:
+                account_id = res_acc.data["account_id"]
+                # Log transaction
+                s_client.table("token_transactions").insert(
                     {
-                        "account_id": acc_id,
+                        "account_id": account_id,
                         "txn_type": "adjustment",
-                        "amount": tokens_spent,
+                        "amount": tokens,
                         "chat_id": chat_id,
                         "created_by": str(user.id),
                     }
                 ).execute()
+                # Update balance
+                bal_res = (
+                    s_client.table("token_balances")
+                    .select("balance")
+                    .eq("account_id", account_id)
+                    .maybe_single()
+                    .execute()
+                )
+                current_bal = bal_res.data["balance"] if bal_res.data else 0
+                s_client.table("token_balances").update(
+                    {"balance": current_bal + tokens}
+                ).eq("account_id", account_id).execute()
 
-        client.table("chats").update(upd).eq("chat_id", chat_id).execute()
-    except APIError:
-        return return_error("INTERNAL_SERVER_ERROR")
+        # 2. Update chat with review info and set status to closed
+        res = (
+            s_client.table("chats")
+            .update(
+                {
+                    "rating": rating,
+                    "resolved": resolved,
+                    "status": "closed",
+                    "closed_at": datetime.datetime.now(
+                        datetime.timezone.utc
+                    ).isoformat(),
+                }
+            )
+            .eq("chat_id", chat_id)
+            .execute()
+        )
 
-    return jsonify({"message": "Chat successfully closed."}), HTTPStatus.OK
+        if not res.data:
+            return return_error("INTERNAL_SERVER_ERROR")
+
+        return jsonify(build_chat_detail(client, res.data[0])), HTTPStatus.OK
+    except Exception as e:
+        return return_error("INTERNAL_SERVER_ERROR", str(e))

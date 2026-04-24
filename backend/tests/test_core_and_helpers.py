@@ -134,3 +134,11 @@ def test_require_supabase_user_success(monkeypatch):
     user, error = helpers.require_supabase_user("tok")
     assert error is None
     assert user.id == "u1"
+
+
+def test_require_access_token_access_token_header_with_bearer_prefix():
+    """Covers helpers.py line 50: Bearer prefix in AccessToken header is stripped."""
+    with flask_app.test_request_context("/", headers={"AccessToken": "Bearer mytoken"}):
+        token, error = helpers.require_access_token()
+        assert token == "mytoken"
+        assert error is None
